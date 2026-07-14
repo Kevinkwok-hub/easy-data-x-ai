@@ -258,14 +258,21 @@ python3 d1_1_base.py
   <sub>1 commit</sub>
 </td>
 <td align="center" valign="top" width="104">
+  <a href="https://github.com/jay666mnj" title="jay666mnj">
+    <img src="https://avatars.githubusercontent.com/u/192066339?v=4&s=144" width="72" height="72" alt="jay666mnj" style="border-radius:50%;" />
+  </a><br />
+  <a href="https://github.com/jay666mnj" title="打开 jay666mnj 的 GitHub 主页"><kbd><strong>jay666mnj</strong></kbd></a><br />
+  <sub>1 commit</sub>
+</td>
+</tr>
+<tr>
+<td align="center" valign="top" width="104">
   <a href="https://github.com/oiahoon" title="oiahoon">
     <img src="https://avatars.githubusercontent.com/u/4361724?v=4&s=144" width="72" height="72" alt="oiahoon" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/oiahoon" title="打开 oiahoon 的 GitHub 主页"><kbd><strong>oiahoon</strong></kbd></a><br />
   <sub>1 commit</sub>
 </td>
-</tr>
-<tr>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/pzb5471" title="pzb5471">
     <img src="https://avatars.githubusercontent.com/u/77824109?v=4&s=144" width="72" height="72" alt="pzb5471" style="border-radius:50%;" />
