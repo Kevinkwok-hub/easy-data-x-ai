@@ -159,10 +159,7 @@ python3 d1_1_base.py
 <tr>
 <td width="180" align="center" valign="middle">
 <a href="https://opc.aliyun.com/oceanbase" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/public/images/sponsors/bailian-dark.svg" />
-    <img src="docs/public/images/sponsors/bailian.svg" alt="阿里云百炼" width="150" />
-  </picture>
+  <img src="docs/public/images/sponsors/bailian.png" alt="阿里云百炼" width="150" />
 </a>
 </td>
 <td valign="middle">
