@@ -158,17 +158,17 @@ python3 d1_1_base.py
 <table>
 <tr>
 <td width="180" align="center" valign="middle">
-<a href="https://opc.aliyun.com/oceanbase" target="_blank" rel="noopener">
+<a href="https://opc.aliyun.com/oceanbase?utm_content=g_1000415375" target="_blank" rel="noopener">
   <img src="docs/public/images/sponsors/bailian.png" alt="阿里云百炼" width="150" />
 </a>
 </td>
 <td valign="middle">
-本课程的模型算力由 <strong><a href="https://opc.aliyun.com/oceanbase">阿里云百炼（Alibaba Cloud Bailian）</a></strong> 提供支持。阿里云百炼大模型服务平台，是企业级的大模型应用开发平台，一站式提供丰富的通义大模型与灵活的智能应用开发工具，助力企业快速落地AI应用，加速业务创新。
+本课程的模型算力由 <strong><a href="https://opc.aliyun.com/oceanbase?utm_content=g_1000415375">阿里云百炼（Alibaba Cloud Bailian）</a></strong> 提供支持。阿里云百炼大模型服务平台，是企业级的大模型应用开发平台，一站式提供丰富的通义大模型与灵活的智能应用开发工具，助力企业快速落地AI应用，加速业务创新。
 </td>
 </tr>
 </table>
 
-- 🚀 **阿里云百炼课程专属福利**：通过 **[课程专属福利页面](https://opc.aliyun.com/oceanbase)** 即可领取百炼平台为课程共建、课程实验、课程学习提供的专属模型算力福利。
+- 🚀 **阿里云百炼课程专属福利**：通过 **[课程专属福利页面](https://opc.aliyun.com/oceanbase?utm_content=g_1000415375)** 即可领取百炼平台为课程共建、课程实验、课程学习提供的专属模型算力福利。
   - 百炼用户通过专属福利页面，可获得 **1 亿 Token** 的模型免费使用额度（具体以活动页面规则为准，实测新、老用户均可获得）；
   - 个人、企业新老用户均可参与无门槛 Token 满返补贴；
   - 另有最高 **100 万元等额 Token** 的 OPC 创新助力；
