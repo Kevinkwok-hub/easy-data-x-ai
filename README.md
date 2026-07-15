@@ -158,6 +158,28 @@ python3 d1_1_base.py
 <table>
 <tr>
 <td width="180" align="center" valign="middle">
+<a href="https://opc.aliyun.com/oceanbase" target="_blank" rel="noopener">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/public/images/sponsors/bailian-dark.svg" />
+    <img src="docs/public/images/sponsors/bailian.svg" alt="阿里云百炼" width="150" />
+  </picture>
+</a>
+</td>
+<td valign="middle">
+本课程的模型算力由 <strong><a href="https://opc.aliyun.com/oceanbase">阿里云百炼（Alibaba Cloud Bailian）</a></strong> 提供支持。阿里云百炼大模型服务平台，是企业级的大模型应用开发平台，一站式提供丰富的通义大模型与灵活的智能应用开发工具，助力企业快速落地AI应用，加速业务创新。
+</td>
+</tr>
+</table>
+
+- 🚀 **阿里云百炼课程专属福利**：通过 **[课程专属福利页面](https://opc.aliyun.com/oceanbase)** 即可领取百炼平台为课程共建、课程实验、课程学习提供的专属模型算力福利。
+  - 百炼用户通过专属福利页面，可获得 **1 亿 Token** 的模型免费使用额度（具体以活动页面规则为准，实测新、老用户均可获得）；
+  - 个人、企业新老用户均可参与无门槛 Token 满返补贴；
+  - 另有最高 **100 万元等额 Token** 的 OPC 创新助力；
+  - 以及高校学生 **模型通兑补贴**。
+
+<table>
+<tr>
+<td width="180" align="center" valign="middle">
 <a href="https://cloud.siliconflow.cn/i/Fq9zUwPf" target="_blank" rel="noopener">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/public/images/sponsors/siliconflow-dark.svg" />
@@ -166,13 +188,14 @@ python3 d1_1_base.py
 </a>
 </td>
 <td valign="middle">
-本课程的模型算力由 <strong><a href="https://cloud.siliconflow.cn/i/Fq9zUwPf">硅基流动（SiliconFlow）</a></strong> 支持。硅基流动是一站式大模型云服务平台，基于自研推理引擎实现大模型高效推理加速，提供高效能、低成本的多品类 AI 模型服务，让开发者和企业聚焦产品创新，无须担心大规模推广带来的高昂算力成本。
+本课程的模型算力也由 <strong><a href="https://cloud.siliconflow.cn/i/Fq9zUwPf">硅基流动（SiliconFlow）</a></strong> 提供支持。硅基流动是一站式大模型云服务平台，基于自研推理引擎实现大模型高效推理加速，提供高效能、低成本的多品类 AI 模型服务，让开发者和企业聚焦产品创新，无须担心大规模推广带来的高昂算力成本。
 </td>
 </tr>
 </table>
 
 - 🎁 **新用户福利**：通过 [课程专属注册链接](https://cloud.siliconflow.cn/i/Fq9zUwPf) 注册并完成实名认证，即可获得 **16 元全平台通用代金券**，可用于平台上百余种模型的调用，足够跑通本课程的全部示例。
 - 🧪 **实验配额补贴池**：用上面的链接注册时，作者也会获得平台返利。这部分返利会**全额回馈给学员**——汇集成一个「实验配额补贴池」：跟着课程做实验、复现示例时如果额度不够用，可以[联系作者](https://space.bilibili.com/28357052)申请额外的算力配额补贴，把福利转回给真正在动手的同学。
+
 
 ---
 
