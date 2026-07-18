@@ -12,16 +12,18 @@ TWELVE = Decimal("12")
 
 
 class ConfigError(ValueError):
-    """Raised when an ROI scenario has invalid business input."""
+    """ROI 配置不符合业务约束时抛出，避免错误假设静默进入财务结果。"""
 
 
 def _mapping(value: Any, field: str) -> dict[str, Any]:
+    """校验 YAML 节点是映射，并在错误中保留完整字段路径。"""
     if not isinstance(value, dict):
         raise ConfigError(f"{field} must be a mapping")
     return value
 
 
 def _decimal(value: Any, field: str, *, minimum: Decimal | None = None) -> Decimal:
+    """统一转为 Decimal；金额计算不用 float，避免二进制小数累积误差。"""
     if isinstance(value, bool):
         raise ConfigError(f"{field} must be a number")
     try:
@@ -36,6 +38,7 @@ def _decimal(value: Any, field: str, *, minimum: Decimal | None = None) -> Decim
 
 
 def _rate(value: Any, field: str) -> Decimal:
+    """校验比例字段处于闭区间 [0, 1]。"""
     number = _decimal(value, field, minimum=Decimal("0"))
     if number > Decimal("1"):
         raise ConfigError(f"{field} must be between 0 and 1")
@@ -44,6 +47,7 @@ def _rate(value: Any, field: str) -> Decimal:
 
 @dataclass(frozen=True)
 class Metrics:
+    """从监控或评测快照得到的 Agent 月度运营输入。"""
     monthly_task_count: Decimal
     agent_handoff_rate: Decimal
     agent_task_success_rate: Decimal
@@ -75,6 +79,7 @@ class Metrics:
 
 @dataclass(frozen=True)
 class LayerCosts:
+    """按数据、模型、业务三层拆分的初始投入与固定成本。"""
     data_initial_preparation: Decimal
     data_monthly_maintenance: Decimal
     model_initial_evaluation: Decimal
@@ -131,6 +136,7 @@ class LayerCosts:
 
 @dataclass(frozen=True)
 class BusinessBaseline:
+    """用于计算增量价值的人工、成功率和风险业务基线。"""
     baseline_human_handling_rate: Decimal
     human_cost_per_task: Decimal
     baseline_task_success_rate: Decimal
@@ -174,6 +180,7 @@ class BusinessBaseline:
 
 @dataclass(frozen=True)
 class Scenario:
+    """一套完整的运营快照、成本假设和对照基线。"""
     name: str
     description: str
     metrics: Metrics
@@ -198,6 +205,7 @@ class Scenario:
 
 @dataclass(frozen=True)
 class RoiResult:
+    """单个情景的首年财务结果；Decimal 只在序列化出口转换。"""
     scenario: str
     description: str
     currency: str
@@ -221,6 +229,7 @@ class RoiResult:
     warnings: tuple[str, ...]
 
     def to_dict(self) -> dict[str, Any]:
+        """转换为稳定的 JSON 结构，None 表示该财务指标不可计算。"""
         def value(number: Decimal | None) -> float | None:
             return None if number is None else float(number)
 

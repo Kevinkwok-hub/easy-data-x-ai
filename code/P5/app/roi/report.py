@@ -12,6 +12,7 @@ from .models import RoiResult
 
 
 def _number(value: Decimal | None, digits: int = 2) -> str:
+    """只在展示层舍入，计算过程始终保留 Decimal 精度。"""
     if value is None:
         return "不适用"
     quantizer = Decimal("1") if digits == 0 else Decimal("1." + "0" * digits)
@@ -84,7 +85,7 @@ def _markdown(results: Iterable[RoiResult], currency: str, horizon_months: int) 
 def write_reports(
     results: Iterable[RoiResult], output_dir: str | Path, currency: str, horizon_months: int
 ) -> list[Path]:
-    """Write stable report files and return their paths."""
+    """把同一批结果序列化为适合阅读、程序消费和表格分析的三种格式。"""
     rows = list(results)
     directory = Path(output_dir)
     directory.mkdir(parents=True, exist_ok=True)
@@ -123,6 +124,8 @@ def write_reports(
                 "payback_period_months",
                 "break_even_monthly_task_volume",
             ],
+            # 报告仓库统一使用 LF，避免 CSV 模块默认 CRLF 在 diff 检查中显示为尾随空白。
+            lineterminator="\n",
         )
         writer.writeheader()
         for result in rows:
