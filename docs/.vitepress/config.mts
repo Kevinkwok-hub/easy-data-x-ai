@@ -86,6 +86,7 @@ export default defineConfig({
               { text: 'X1-1：记忆的生命周期工程', link: '/extra/X1-1 记忆的生命周期工程' },
               { text: 'X1-2：记忆的边界与信任', link: '/extra/X1-2 记忆的边界与信任' },
               { text: 'X1-3：从记忆到认知', link: '/extra/X1-3 从记忆到认知' },
+              { text: 'X1-4：AI Memory 系统架构', link: '/extra/X1-4 AI Memory系统架构的构思与随想' },
             ]
           },
           { text: 'X2：多 Skill 与上下文工程', link: '/extra/X2 多 Skill 给上下文工程带来的麻烦：如何应对 Agent「爆上下文」' },
