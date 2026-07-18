@@ -233,7 +233,7 @@ python3 d1_1_base.py
     <img src="https://avatars.githubusercontent.com/u/13233790?v=4&s=144" width="72" height="72" alt="liboyang0730" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/liboyang0730" title="打开 liboyang0730 的 GitHub 主页"><kbd><strong>liboyang073…</strong></kbd></a><br />
-  <sub>84 commits</sub>
+  <sub>85 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/knqiufan" title="knqiufan">
@@ -286,6 +286,13 @@ python3 d1_1_base.py
 </td>
 </tr>
 <tr>
+<td align="center" valign="top" width="104">
+  <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
+    <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
+  </a><br />
+  <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
+  <sub>1 commit</sub>
+</td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/oiahoon" title="oiahoon">
     <img src="https://avatars.githubusercontent.com/u/4361724?v=4&s=144" width="72" height="72" alt="oiahoon" style="border-radius:50%;" />
