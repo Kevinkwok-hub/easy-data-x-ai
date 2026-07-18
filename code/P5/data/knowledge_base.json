@@ -1,0 +1,171 @@
+[
+  {
+    "doc_id": "kb-general-refund",
+    "category": "general",
+    "answer": "标准退款申请需要在订单完成后 7 天内提交，并提供订单号和退款原因。",
+    "keywords": ["退款", "退费", "订单"]
+  },
+  {
+    "doc_id": "kb-general-shipping",
+    "category": "general",
+    "answer": "普通配送通常需要 3 到 5 个工作日，偏远地区可能延长 1 到 2 天。",
+    "keywords": ["配送", "物流", "多久"]
+  },
+  {
+    "doc_id": "kb-general-login",
+    "category": "general",
+    "answer": "账号无法登录时，请先确认邮箱已验证，再使用忘记密码流程重置密码。",
+    "keywords": ["登录", "账号", "邮箱"]
+  },
+  {
+    "doc_id": "kb-general-invoice",
+    "category": "general",
+    "answer": "电子发票可在账单中心下载，企业抬头需要先完成开票信息认证。",
+    "keywords": ["发票", "账单", "抬头"]
+  },
+  {
+    "doc_id": "kb-general-password",
+    "category": "general",
+    "answer": "密码重置链接会在 10 分钟内失效，建议重新发起重置并检查垃圾邮件箱。",
+    "keywords": ["密码", "重置", "链接"]
+  },
+  {
+    "doc_id": "kb-general-hours",
+    "category": "general",
+    "answer": "人工客服服务时间为工作日 9:00 到 18:00，紧急工单会在 2 小时内响应。",
+    "keywords": ["客服", "服务时间", "人工"]
+  },
+  {
+    "doc_id": "kb-general-security",
+    "category": "general",
+    "answer": "平台默认启用传输加密和访问审计，管理员可以在安全中心导出审计日志。",
+    "keywords": ["安全", "加密", "审计"]
+  },
+  {
+    "doc_id": "kb-general-sla",
+    "category": "general",
+    "answer": "企业版 SLA 为 99.9%，月度可用性低于承诺值时可申请服务补偿。",
+    "keywords": ["SLA", "可用性", "补偿"]
+  },
+  {
+    "doc_id": "kb-product-x100-v1.2",
+    "category": "product",
+    "answer": "X100 v1.2 支持基础批量导入，但不支持增量同步。",
+    "keywords": ["X100", "v1.2", "批量导入"],
+    "product_model": "X100",
+    "product_version": "v1.2"
+  },
+  {
+    "doc_id": "kb-product-x100-v2.0",
+    "category": "product",
+    "answer": "X100 v2.0 新增增量同步、字段映射模板和失败重试队列。",
+    "keywords": ["X100", "v2.0", "增量同步"],
+    "product_model": "X100",
+    "product_version": "v2.0"
+  },
+  {
+    "doc_id": "kb-product-promax-2025",
+    "category": "product",
+    "answer": "ProMax-2025 支持 200 并发任务，并内置异常告警规则。",
+    "keywords": ["ProMax-2025", "并发", "告警"],
+    "product_model": "ProMax-2025"
+  },
+  {
+    "doc_id": "kb-product-databridge-3.4",
+    "category": "product",
+    "answer": "DataBridge 3.4 支持 MySQL、PostgreSQL 和 S3 数据源连接。",
+    "keywords": ["DataBridge", "3.4", "数据源"],
+    "product_model": "DataBridge",
+    "product_version": "3.4"
+  },
+  {
+    "doc_id": "kb-product-litebot-1.0",
+    "category": "product",
+    "answer": "LiteBot 1.0 只支持 FAQ 问答，不支持外部工具调用。",
+    "keywords": ["LiteBot", "1.0", "FAQ"],
+    "product_model": "LiteBot",
+    "product_version": "1.0"
+  },
+  {
+    "doc_id": "kb-product-edgenode-a2",
+    "category": "product",
+    "answer": "EdgeNode-A2 适合边缘部署，最低需要 4 核 CPU 和 8GB 内存。",
+    "keywords": ["EdgeNode-A2", "边缘", "内存"],
+    "product_model": "EdgeNode-A2"
+  },
+  {
+    "doc_id": "kb-error-e1001",
+    "category": "error",
+    "answer": "E1001 表示认证令牌过期，请重新登录或刷新 API Token。",
+    "keywords": ["E1001", "认证", "令牌"],
+    "error_code": "E1001"
+  },
+  {
+    "doc_id": "kb-error-e2002",
+    "category": "error",
+    "answer": "E2002 表示同步请求超时，建议缩小时间窗口后重试。",
+    "keywords": ["E2002", "同步", "超时"],
+    "error_code": "E2002"
+  },
+  {
+    "doc_id": "kb-error-e3003",
+    "category": "error",
+    "answer": "E3003 表示调用额度不足，请升级套餐或等待额度刷新。",
+    "keywords": ["E3003", "额度", "套餐"],
+    "error_code": "E3003"
+  },
+  {
+    "doc_id": "kb-error-e4004",
+    "category": "error",
+    "answer": "E4004 表示目标文档不存在，请检查文档 ID 是否正确。",
+    "keywords": ["E4004", "文档", "不存在"],
+    "error_code": "E4004"
+  },
+  {
+    "doc_id": "kb-error-e5005",
+    "category": "error",
+    "answer": "E5005 表示外部工具服务不可用，请稍后重试或转人工排查。",
+    "keywords": ["E5005", "工具", "不可用"],
+    "error_code": "E5005"
+  },
+  {
+    "doc_id": "kb-tool-reset-api-key",
+    "category": "tool",
+    "answer": "已调用账号工具发起 API Key 重置流程。",
+    "keywords": ["重置 API Key", "API Key", "密钥"],
+    "requires_tool": true,
+    "tool_success": true
+  },
+  {
+    "doc_id": "kb-tool-check-order",
+    "category": "tool",
+    "answer": "已调用订单工具查询订单状态，当前订单为处理中。",
+    "keywords": ["查询订单", "订单状态", "订单工具"],
+    "requires_tool": true,
+    "tool_success": true
+  },
+  {
+    "doc_id": "kb-tool-create-ticket",
+    "category": "tool",
+    "answer": "已调用工单工具创建优先级 P2 的支持工单。",
+    "keywords": ["创建工单", "支持工单", "P2"],
+    "requires_tool": true,
+    "tool_success": true
+  },
+  {
+    "doc_id": "kb-tool-schedule-callback",
+    "category": "tool",
+    "answer": "已调用回访工具预约明天 10:00 的电话回访。",
+    "keywords": ["预约回访", "电话回访", "明天 10:00"],
+    "requires_tool": true,
+    "tool_success": true
+  },
+  {
+    "doc_id": "kb-tool-export-usage",
+    "category": "tool",
+    "answer": "已调用报表工具导出本月用量 CSV。",
+    "keywords": ["导出用量", "用量 CSV", "报表工具"],
+    "requires_tool": true,
+    "tool_success": false
+  }
+]

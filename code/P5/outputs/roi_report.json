@@ -1,0 +1,95 @@
+{
+  "currency": "CNY",
+  "horizon_months": 12,
+  "scenarios": [
+    {
+      "scenario": "conservative",
+      "description": "低业务量、较高转人工率和较高单任务模型成本下的预期。",
+      "currency": "CNY",
+      "horizon_months": 12,
+      "status": "loss_making",
+      "costs": {
+        "initial_cost": 4100.0,
+        "monthly_fixed_cost": 700.0,
+        "monthly_variable_cost": 200.0,
+        "total_cost": 14900.0
+      },
+      "benefits": {
+        "monthly_human_saving": 520.0,
+        "monthly_revenue_lift": 128.0,
+        "monthly_risk_reduction": 240.0,
+        "monthly_efficiency_gain": 50.0,
+        "monthly_total_benefit": 938.0,
+        "total_benefit": 11256.0
+      },
+      "financials": {
+        "net_benefit": -3644.0,
+        "roi_percent": -24.456375838926174,
+        "monthly_net_benefit": 38.0,
+        "payback_period_months": 107.89473684210526,
+        "break_even_monthly_task_volume": 115.31007751937985
+      },
+      "warnings": [
+        "投资回收期超过首年计算周期。"
+      ]
+    },
+    {
+      "scenario": "base",
+      "description": "课程案例的基准情景：100 个任务/月，AI 解决 80% 的人工服务需求。",
+      "currency": "CNY",
+      "horizon_months": 12,
+      "status": "profitable",
+      "costs": {
+        "initial_cost": 4000.0,
+        "monthly_fixed_cost": 600.0,
+        "monthly_variable_cost": 200.0,
+        "total_cost": 13600.0
+      },
+      "benefits": {
+        "monthly_human_saving": 800.0,
+        "monthly_revenue_lift": 400.0,
+        "monthly_risk_reduction": 600.0,
+        "monthly_efficiency_gain": 100.0,
+        "monthly_total_benefit": 1900.0,
+        "total_benefit": 22800.0
+      },
+      "financials": {
+        "net_benefit": 9200.0,
+        "roi_percent": 67.6470588235294,
+        "monthly_net_benefit": 1100.0,
+        "payback_period_months": 3.6363636363636362,
+        "break_even_monthly_task_volume": 52.083333333333336
+      },
+      "warnings": []
+    },
+    {
+      "scenario": "optimistic",
+      "description": "业务量增长、Agent 质量提升且单位调用成本下降后的预期。",
+      "currency": "CNY",
+      "horizon_months": 12,
+      "status": "profitable",
+      "costs": {
+        "initial_cost": 4000.0,
+        "monthly_fixed_cost": 580.0,
+        "monthly_variable_cost": 224.0,
+        "total_cost": 13648.0
+      },
+      "benefits": {
+        "monthly_human_saving": 1232.0,
+        "monthly_revenue_lift": 784.0,
+        "monthly_risk_reduction": 1120.0,
+        "monthly_efficiency_gain": 150.0,
+        "monthly_total_benefit": 3286.0,
+        "total_benefit": 39432.0
+      },
+      "financials": {
+        "net_benefit": 25784.0,
+        "roi_percent": 188.92145369284876,
+        "monthly_net_benefit": 2482.0,
+        "payback_period_months": 1.6116035455278002,
+        "break_even_monthly_task_volume": 36.69871794871795
+      },
+      "warnings": []
+    }
+  ]
+}

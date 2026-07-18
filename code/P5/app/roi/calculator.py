@@ -18,7 +18,7 @@ DEFAULT_HORIZON_MONTHS = 12
 
 
 def load_config(config_path: str | Path) -> tuple[str, int, list[Scenario]]:
-    """Load a fixed-horizon ROI report configuration from YAML."""
+    """读取并校验固定 12 个月、三种情景的 ROI 配置。"""
     path = Path(config_path)
     try:
         raw = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -49,12 +49,13 @@ def load_config(config_path: str | Path) -> tuple[str, int, list[Scenario]]:
 
 
 def calculate_scenario(scenario: Scenario, currency: str = "CNY", horizon_months: int = 12) -> RoiResult:
-    """Calculate first-year costs, benefits, ROI, payback, and break-even volume."""
+    """核心公式入口：计算首年成本、收益、ROI、回收期和盈亏平衡量。"""
     months = Decimal(horizon_months)
     metrics = scenario.metrics
     costs = scenario.costs
     baseline = scenario.baseline
 
+    # 初始成本只发生一次；固定成本和按任务计费的可变成本按月进入首年总成本。
     initial_cost = (
         costs.data_initial_preparation
         + costs.model_initial_evaluation
@@ -67,6 +68,7 @@ def calculate_scenario(scenario: Scenario, currency: str = "CNY", horizon_months
     monthly_variable_cost = metrics.monthly_task_count * metrics.agent_variable_cost_per_task
     total_cost = initial_cost + months * (monthly_fixed_cost + monthly_variable_cost)
 
+    # 三类收益都只计算“相对业务基线的增量”，避免把 Agent 完成的全部业务价值重复归因。
     monthly_human_saving = (
         metrics.monthly_task_count
         * (baseline.baseline_human_handling_rate - metrics.agent_handoff_rate)
@@ -97,6 +99,7 @@ def calculate_scenario(scenario: Scenario, currency: str = "CNY", horizon_months
     if roi_percent is None:
         warnings.append("总成本为 0，无法计算 ROI。")
 
+    # 只有月净收益为正才存在有限回收期，否则用 None 明确表达“不适用”。
     payback_period_months = None
     if monthly_net_benefit > 0:
         payback_period_months = initial_cost / monthly_net_benefit
@@ -105,6 +108,7 @@ def calculate_scenario(scenario: Scenario, currency: str = "CNY", horizon_months
     else:
         warnings.append("月净收益不为正，项目无法回本。")
 
+    # 盈亏平衡量先计算单位任务边际收益，再用首年月均固定缺口反推所需任务量。
     benefit_per_task = (
         (baseline.baseline_human_handling_rate - metrics.agent_handoff_rate) * baseline.human_cost_per_task
         + (metrics.agent_task_success_rate - baseline.baseline_task_success_rate)
@@ -152,7 +156,7 @@ def calculate_scenario(scenario: Scenario, currency: str = "CNY", horizon_months
 
 
 def run(config_path: str | Path, output_dir: str | Path) -> list[Path]:
-    """Run all required scenarios and return generated report paths."""
+    """依次计算三种情景并输出 Markdown、JSON 和 CSV。"""
     currency, horizon, scenarios = load_config(config_path)
     results = [calculate_scenario(scenario, currency, horizon) for scenario in scenarios]
     return write_reports(results, output_dir, currency, horizon)

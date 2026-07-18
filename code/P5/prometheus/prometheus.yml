@@ -1,0 +1,13 @@
+# Prometheus 只抓取 Agent 暴露的低基数指标；query、answer 等明细进入可选 LangSmith Trace。
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: p5-knowledge-agent
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - agent:8000
+        labels:
+          service: p5-agent

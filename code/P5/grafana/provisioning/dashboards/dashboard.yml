@@ -1,0 +1,13 @@
+# Grafana 启动时自动加载 dashboard JSON，保证 docker compose up 后即可查看课程面板。
+apiVersion: 1
+
+providers:
+  - name: p5-agent-dashboards
+    orgId: 1
+    folder: P5 Agent
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 10
+    options:
+      path: /var/lib/grafana/dashboards
