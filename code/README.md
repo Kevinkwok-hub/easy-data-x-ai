@@ -55,6 +55,8 @@ DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
 ### 3. 运行示例
 
+macOS/Linux：
+
 ```bash
 cd D1
 python3 d1_1_base.py
