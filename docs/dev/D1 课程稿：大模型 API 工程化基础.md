@@ -297,7 +297,7 @@ def query_knowledge_base(query: str) -> str:
 
 `description`（也就是 docstring）**极其重要**。模型根据这段描述来判断什么时候该用这个工具。如果描述写得不清楚，模型就不知道什么时候该调用它。这和 System Prompt 一样，是你控制 Agent 行为的重要杠杆。
 
-#### 第二步：绑定工具，发起调用
+#### 第二步：绑定工具，准备消息
 ```python
 from langchain.chat_models import init_chat_model
 
@@ -311,13 +311,11 @@ llm = init_chat_model(
 # 把工具绑定到模型上
 llm_with_tools = llm.bind_tools([query_knowledge_base])
 
-# 发起调用
+# 准备消息
 messages = [
     ("system", "你是一个技术文档助手。当用户问及产品相关问题时，请先查询知识库获取准确信息。"),
     ("user", "seekdb 支持哪些检索方式？"),
 ]
-
-response = llm_with_tools.invoke(messages)
 ```
 
 注意 `llm.bind_tools()` 这一步——它把工具定义“绑定”到模型上，之后每次调用这个 `llm_with_tools`，模型都“知道”它有哪些工具可以用。
@@ -328,31 +326,44 @@ response = llm_with_tools.invoke(messages)
 
 #### 第三步：你的代码执行工具，结果传回模型
 ```python
-if response.tool_calls:
-    tool_call = response.tool_calls[0]
-    tool_name = tool_call["name"]
-    tool_args = tool_call["args"]
+from langchain_core.messages import ToolMessage
 
-    # 执行工具
-    result = query_knowledge_base.invoke(tool_args)
+tools_by_name = {
+    query_knowledge_base.name: query_knowledge_base,
+}
+max_rounds = 5
 
-    # 把工具调用结果传回模型
-    messages.append(response)  # 先把模型的 tool_call 消息加进去
-    messages.append(ToolMessage(content=result, tool_call_id=tool_call["id"]))
+for _ in range(max_rounds):
+    # 每一轮都调用绑定工具的模型
+    response = llm_with_tools.invoke(messages)
+    if not response.tool_calls:
+        final_response = response
+        break
 
-    # 模型基于工具返回的结果生成最终回答
-    final_response = llm.invoke(messages)
+    # 同一轮可能返回多个 tool call，要全部执行
+    messages.append(response)
+    for tool_call in response.tool_calls:
+        tool = tools_by_name[tool_call["name"]]
+        result = tool.invoke(tool_call["args"])
+        messages.append(
+            ToolMessage(content=result, tool_call_id=tool_call["id"])
+        )
+else:
+    raise RuntimeError(f"工具调用已达到 {max_rounds} 轮上限")
 
-    print(final_response.content)
+print(final_response.content)
 ```
 
 来看看整个流程中发生了什么：
 
 1. 用户问了一个问题
-2. 模型判断需要查知识库，返回 tool call（而不是直接回答）
-3. **你的代码**拿到 tool call，执行实际的知识库查询（`query_knowledge_base.invoke()`）
-4. 查询结果作为 `ToolMessage` 传回给模型
-5. 模型拿到查询结果后，基于这些真实数据生成最终回答
+2. 模型判断需要查知识库，返回一个或多个 tool call（而不是直接回答）
+3. **你的代码**遍历这一轮的全部 tool call，执行对应工具
+4. 查询结果作为 `ToolMessage` 传回给绑定工具的模型
+5. 模型可以继续调用其他工具，也可以生成最终回答
+
+真实 Agent 不能假设“一次工具调用后就会得到答案”。它需要循环调用
+`llm_with_tools`，直到模型不再返回 `tool_calls`；同时设置最大轮数，避免模型一直调用工具而无法结束。
 
 这就是一个完整的 Tool Use 循环。用 F1 的语言来说——模型不再“猜”答案了，因为你给了它一条路去**获取真实数据**。
 
