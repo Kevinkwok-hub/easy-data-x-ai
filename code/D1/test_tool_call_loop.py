@@ -103,6 +103,49 @@ class RunToolCallLoopTest(unittest.TestCase):
         self.assertIn("A 结果", model.calls[1][-2][1])
         self.assertIn("B 结果", model.calls[1][-1][1])
 
+    def test_same_tool_calls_include_their_own_args_and_ids_in_messages(self):
+        tool = FakeTool("查询结果")
+        model = FakeModel(
+            [
+                [
+                    FakeChunk(
+                        tool_calls=[
+                            {
+                                "id": "call_first",
+                                "name": "search",
+                                "args": {"query": "第一个问题"},
+                            },
+                            {
+                                "id": "call_second",
+                                "name": "search",
+                                "args": {"query": "第二个问题"},
+                            },
+                        ]
+                    )
+                ],
+                [FakeChunk(content="最终回答")],
+            ]
+        )
+
+        run_tool_call_loop(
+            model,
+            [("user", "问题")],
+            {"search": tool},
+        )
+
+        first_message = model.calls[1][-2][1]
+        second_message = model.calls[1][-1][1]
+        self.assertIn("call_first", first_message)
+        self.assertIn("'query': '第一个问题'", first_message)
+        self.assertNotIn("call_second", first_message)
+        self.assertIn("call_second", second_message)
+        self.assertIn("'query': '第二个问题'", second_message)
+        self.assertNotIn("call_first", second_message)
+        self.assertEqual(
+            tool.calls,
+            [{"query": "第一个问题"}, {"query": "第二个问题"}],
+        )
+
     def test_supports_different_tools_across_multiple_rounds(self):
         tool_a = FakeTool("第一步")
         tool_b = FakeTool("第二步")
@@ -211,6 +254,68 @@ class RunToolCallLoopTest(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "missing_tool"):
             run_tool_call_loop(model, [("user", "问题")], {})
+
+    def test_mixed_known_and_unknown_tools_fail_before_any_invoke(self):
+        known_tool = FakeTool("不应执行")
+        model = FakeModel(
+            [
+                [
+                    FakeChunk(
+                        tool_calls=[
+                            {"name": "known_tool", "args": {"value": 1}},
+                            {"name": "missing_tool", "args": {"value": 2}},
+                        ]
+                    )
+                ]
+            ]
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "missing_tool"):
+            run_tool_call_loop(
+                model,
+                [("user", "问题")],
+                {"known_tool": known_tool},
+            )
+
+        self.assertEqual(known_tool.calls, [])
+
+    def test_malformed_batch_fails_before_any_invoke(self):
+        malformed_calls = [
+            None,
+            {},
+            {"name": "", "args": {}},
+            {"name": 123, "args": {}},
+            {"name": "known_tool"},
+            {"name": "known_tool", "args": []},
+        ]
+
+        for malformed_call in malformed_calls:
+            with self.subTest(tool_call=malformed_call):
+                known_tool = FakeTool("不应执行")
+                model = FakeModel(
+                    [
+                        [
+                            FakeChunk(
+                                tool_calls=[
+                                    {
+                                        "name": "known_tool",
+                                        "args": {"value": 1},
+                                    },
+                                    malformed_call,
+                                ]
+                            )
+                        ]
+                    ]
+                )
+
+                with self.assertRaises(RuntimeError):
+                    run_tool_call_loop(
+                        model,
+                        [("user", "问题")],
+                        {"known_tool": known_tool},
+                    )
+
+                self.assertEqual(known_tool.calls, [])
 
 
 if __name__ == "__main__":
