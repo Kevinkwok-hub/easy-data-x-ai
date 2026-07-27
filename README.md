@@ -116,6 +116,8 @@ npm run docs:dev
 
 ### 本地运行示例代码
 
+macOS/Linux：
+
 ```bash
 cd code
 
@@ -129,6 +131,17 @@ cp .env.example .env
 # 运行示例
 cd D1
 python3 d1_1_base.py
+```
+
+Windows PowerShell：
+
+```powershell
+cd code
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+# 编辑 .env 文件，填写你的 API Key
+cd D1
+python d1_1_base.py
 ```
 
 示例代码会优先读取 `code/.env`；如果该文件不存在，也支持从父目录向上查找 `.env`（例如仓库根目录 `.env`）。已有系统环境变量不会被 `.env` 覆盖。
