@@ -65,14 +65,15 @@ def print_tool_result(tool_call, result):
     print(f">>> 知识库检索结果：\n{result}\n")
 
 
-# 注意：硅基流动的 API 对 tool_calls 消息格式兼容性有限
-# helper 会把每个工具结果作为 user 消息传回，并继续调用绑定工具的模型
+# 硅基流动当前对 assistant.tool_calls + ToolMessage 的兼容性有限。
+# 因此本示例显式选择 legacy user-message fallback；helper 默认仍是标准协议。
 response = run_tool_call_loop(
     llm_with_tools,
     messages,
     {query_knowledge_base.name: query_knowledge_base},
     max_rounds=5,
     on_tool_result=print_tool_result,
+    legacy_user_message_fallback=True,
 )
 
 print(f">>> 模型最终回答：\n{response.content}")

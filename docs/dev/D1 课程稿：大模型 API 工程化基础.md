@@ -332,13 +332,17 @@ tools_by_name = {
     query_knowledge_base.name: query_knowledge_base,
 }
 max_rounds = 5
+executed_tool_rounds = 0
 
-for _ in range(max_rounds):
+while True:
     # 每一轮都调用绑定工具的模型
     response = llm_with_tools.invoke(messages)
     if not response.tool_calls:
         final_response = response
         break
+
+    if executed_tool_rounds >= max_rounds:
+        raise RuntimeError(f"工具调用已达到 {max_rounds} 轮上限")
 
     # 同一轮可能返回多个 tool call，要全部执行
     messages.append(response)
@@ -348,8 +352,7 @@ for _ in range(max_rounds):
         messages.append(
             ToolMessage(content=result, tool_call_id=tool_call["id"])
         )
-else:
-    raise RuntimeError(f"工具调用已达到 {max_rounds} 轮上限")
+    executed_tool_rounds += 1
 
 print(final_response.content)
 ```
