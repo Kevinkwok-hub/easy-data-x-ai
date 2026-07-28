@@ -27,6 +27,7 @@ __pycache__/
 
 # seekdb / memory 本地数据库（运行示例代码时生成）
 code/**/seekdb.db/
+code/**/seekdb/
 code/**/memory.db/
 code/**/memory_persistent.db/
 code/D3/d3_seekdb/

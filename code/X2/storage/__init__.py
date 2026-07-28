@@ -8,6 +8,6 @@ __all__ = ["SkillStorage", "SeekdbStorage", "create_storage"]
 
 def create_storage(path: str | None = None) -> SkillStorage:
     """Create the default seekdb-backed storage."""
-    from database.collections import DEFAULT_SEEKDB_PATH
+    from database.schema import DEFAULT_SEEKDB_PATH
 
     return SeekdbStorage(path or DEFAULT_SEEKDB_PATH)

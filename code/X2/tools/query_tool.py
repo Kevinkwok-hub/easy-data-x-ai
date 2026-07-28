@@ -3,11 +3,11 @@
 Query tool for querying skills from seekdb.
 
 Usage:
-    python query_tool.py get <skill_name> [--db-path <path>] [--format <format>]
-    python query_tool.py list [--category <cat>] [--db-path <path>]
-    python query_tool.py search <keyword> [--db-path <path>]
-    python query_tool.py rules <skill_name> [--db-path <path>]
-    python query_tool.py examples <skill_name> [--db-path <path>]
+    python query_tool.py [--db-path <path>] get <skill_name> [--format <format>]
+    python query_tool.py [--db-path <path>] list [--category <cat>]
+    python query_tool.py [--db-path <path>] search <keyword>
+    python query_tool.py [--db-path <path>] rules <skill_name>
+    python query_tool.py [--db-path <path>] examples <skill_name>
 """
 
 import sys
@@ -19,20 +19,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services import QueryService, SkillService
 from storage import create_storage
-from database.collections import DEFAULT_SEEKDB_PATH
+from database.schema import DEFAULT_SEEKDB_PATH
+from database.seekdb_client import check_connection
 
 
-def ensure_storage(db_path: str) -> None:
+def ensure_storage(db_path: str):
+    ok, message = check_connection(db_path)
+    if not ok:
+        print(message)
+        sys.exit(1)
     storage = create_storage(db_path)
     if not storage.is_initialized():
         print(f"✗ Error: seekdb not initialized: {db_path}")
         print("  Run 'python database/init_seekdb.py' first")
         print("  Or run 'python tools/migrate.py skills/ --all' to migrate skills")
+        storage.close()
         sys.exit(1)
+    return storage
 
 
-def get_skill(skill_name: str, db_path: str, output_format: str = "text"):
-    query_service = QueryService(db_path)
+def get_skill(skill_name: str, storage, output_format: str = "text"):
+    query_service = QueryService(storage)
     skill_complete = query_service.get_skill_complete(skill_name)
 
     if not skill_complete:
@@ -53,8 +60,8 @@ def get_skill(skill_name: str, db_path: str, output_format: str = "text"):
         print(f"\nContent length: {len(skill['content'])} characters")
 
 
-def list_skills(category: str = None, db_path: str = None):
-    skill_service = SkillService(db_path)
+def list_skills(category: str = None, storage=None):
+    skill_service = SkillService(storage)
     skills = skill_service.list_skills(category=category)
 
     if not skills:
@@ -73,8 +80,8 @@ def list_skills(category: str = None, db_path: str = None):
         print()
 
 
-def search_skills(keyword: str, db_path: str):
-    query_service = QueryService(db_path)
+def search_skills(keyword: str, storage):
+    query_service = QueryService(storage)
     skills = query_service.search_skills(keyword)
 
     if not skills:
@@ -91,8 +98,8 @@ def search_skills(keyword: str, db_path: str):
         print()
 
 
-def get_rules(skill_name: str, db_path: str):
-    query_service = QueryService(db_path)
+def get_rules(skill_name: str, storage):
+    query_service = QueryService(storage)
     rules = query_service.get_rules_by_skill(skill_name)
 
     if not rules:
@@ -110,8 +117,8 @@ def get_rules(skill_name: str, db_path: str):
         print()
 
 
-def get_examples(skill_name: str, db_path: str):
-    query_service = QueryService(db_path)
+def get_examples(skill_name: str, storage):
+    query_service = QueryService(storage)
     examples = query_service.get_examples_by_skill(skill_name)
 
     if not examples:
@@ -162,18 +169,20 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    ensure_storage(args.db_path)
-
-    if args.command == "get":
-        get_skill(args.skill_name, args.db_path, args.format)
-    elif args.command == "list":
-        list_skills(category=args.category, db_path=args.db_path)
-    elif args.command == "search":
-        search_skills(args.keyword, args.db_path)
-    elif args.command == "rules":
-        get_rules(args.skill_name, args.db_path)
-    elif args.command == "examples":
-        get_examples(args.skill_name, args.db_path)
+    storage = ensure_storage(args.db_path)
+    try:
+        if args.command == "get":
+            get_skill(args.skill_name, storage, args.format)
+        elif args.command == "list":
+            list_skills(category=args.category, storage=storage)
+        elif args.command == "search":
+            search_skills(args.keyword, storage)
+        elif args.command == "rules":
+            get_rules(args.skill_name, storage)
+        elif args.command == "examples":
+            get_examples(args.skill_name, storage)
+    finally:
+        storage.close()
 
 
 if __name__ == "__main__":

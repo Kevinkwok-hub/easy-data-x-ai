@@ -142,10 +142,15 @@ class DatabaseSafetyTests(unittest.TestCase):
             "d3_4_production.py",
         ):
             with self.subTest(filename=filename):
-                namespace, _, client_paths = load_script(filename)
-                create_db_client = namespace.get("create_db_client")
-                self.assertIsNotNone(create_db_client)
-                create_db_client()
+                with patch.dict(
+                    "os.environ",
+                    {"SEEKDB_MODE": "embedded"},
+                    clear=False,
+                ):
+                    namespace, _, client_paths = load_script(filename)
+                    create_db_client = namespace.get("create_db_client")
+                    self.assertIsNotNone(create_db_client)
+                    create_db_client()
                 self.assertEqual([str(expected)], client_paths)
 
     def test_ingest_reuses_collection_and_upserts_documents(self):
@@ -265,6 +270,27 @@ class ToolLoopTests(unittest.TestCase):
         ]
         self.assertEqual(["call_1", "call_2"], [item["tool_call_id"] for item in tool_messages])
 
+    def test_rejects_missing_or_duplicate_tool_call_ids_before_search(self):
+        run_agent_loop = self.require_loop()
+        for calls in (
+            [FakeToolCall("", "search_knowledge_base", '{"query": "E-4012"}')],
+            [
+                FakeToolCall("same", "search_knowledge_base", '{"query": "E-4012"}'),
+                FakeToolCall("same", "search_knowledge_base", '{"query": "Q3"}'),
+            ],
+        ):
+            queries = []
+            with self.subTest(calls=calls), self.assertRaisesRegex(
+                ValueError,
+                "id",
+            ):
+                run_agent_loop(
+                    "问题",
+                    api_client=SequenceClient([FakeMessage(tool_calls=calls)]),
+                    search_fn=lambda query: queries.append(query) or query,
+                )
+            self.assertEqual([], queries)
+
     def test_supports_multiple_tool_rounds(self):
         run_agent_loop = self.require_loop()
         client = SequenceClient(
@@ -375,6 +401,61 @@ class ToolLoopTests(unittest.TestCase):
         self.assertIn("达到最大工具调用轮数（2）", answer)
         self.assertEqual(["query_1", "query_2"], queries)
         self.assertEqual(3, len(client.completions.calls))
+
+    def test_small_talk_does_not_search_product_knowledge_base(self):
+        class PromptAwareCompletions:
+            def __init__(self):
+                self.calls = []
+
+            def create(inner_self, **kwargs):
+                inner_self.calls.append(kwargs)
+                system_prompt = kwargs["messages"][0]["content"]
+                if "仅当用户询问产品知识" in system_prompt:
+                    message = FakeMessage(content="你好！")
+                else:
+                    message = FakeMessage(
+                        tool_calls=[
+                            FakeToolCall(
+                                "call-chat",
+                                "search_knowledge_base",
+                                '{"query": "你好"}',
+                            )
+                        ]
+                    )
+                return types.SimpleNamespace(
+                    id="chatcmpl-offline",
+                    object="chat.completion",
+                    created=1722144000,
+                    model="offline-model",
+                    choices=[
+                        types.SimpleNamespace(
+                            index=0,
+                            message=message,
+                            finish_reason="stop",
+                        )
+                    ],
+                    usage=types.SimpleNamespace(
+                        prompt_tokens=10,
+                        completion_tokens=2,
+                        total_tokens=12,
+                    ),
+                )
+
+        completions = PromptAwareCompletions()
+        client = types.SimpleNamespace(
+            chat=types.SimpleNamespace(completions=completions)
+        )
+        searches = []
+
+        answer = self.require_loop()(
+            "你好，今天心情怎么样？",
+            api_client=client,
+            search_fn=lambda query: searches.append(query) or query,
+            max_tool_rounds=0,
+        )
+
+        self.assertEqual("你好！", answer)
+        self.assertEqual([], searches)
 
 
 class ProductionDemoToolSafetyTests(unittest.TestCase):

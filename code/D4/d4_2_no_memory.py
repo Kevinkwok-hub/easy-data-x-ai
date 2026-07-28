@@ -19,21 +19,42 @@ from openai import OpenAI
 
 # ---------- 1. 初始化 LLM 客户端 ----------
 
-client = OpenAI(
-    api_key=Config.SILICONFLOW_API_KEY,
-    base_url=Config.SILICONFLOW_BASE_URL,
-)
 MODEL = "deepseek-ai/DeepSeek-V3"
+
+
+def create_model_client():
+    """显式创建 OpenAI 兼容模型客户端。"""
+    return OpenAI(
+        api_key=Config.SILICONFLOW_API_KEY,
+        base_url=Config.SILICONFLOW_BASE_URL,
+    )
+
+
+def _require_response_content(response) -> str:
+    """把供应商空响应转换为稳定异常。"""
+    choices = getattr(response, "choices", None)
+    if not choices:
+        raise RuntimeError("模型返回空响应：缺少 choices")
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        raise RuntimeError("模型返回空响应：缺少 message")
+    content = getattr(message, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("模型返回空响应：缺少 content")
+    return content
 
 
 # ---------- 2. 无记忆的 Agent ----------
 
-def chat_without_memory(user_input: str) -> str:
+def chat_without_memory(user_input: str, *, api_client=None) -> str:
     """
     无记忆的 Agent：每次对话都是全新的。
     messages 列表只包含当前这一轮的 system prompt 和用户输入，
     没有任何历史信息。
     """
+    if api_client is None:
+        with create_model_client() as owned_client:
+            return chat_without_memory(user_input, api_client=owned_client)
     messages = [
         {
             "role": "system",
@@ -42,64 +63,58 @@ def chat_without_memory(user_input: str) -> str:
         {"role": "user", "content": user_input}
     ]
 
-    response = client.chat.completions.create(
+    active_client = api_client if api_client is not None else create_model_client()
+    response = active_client.chat.completions.create(
         model=MODEL,
         messages=messages
     )
 
-    return response.choices[0].message.content
+    return _require_response_content(response)
 
 
 # ---------- 3. 演示对话序列 ----------
 
-print("=" * 60)
-print("无记忆 Agent 演示")
-print("=" * 60)
-print("观察：每一轮对话都是独立的，Agent 不记得上一轮说过什么")
-print()
+def run_demo(*, api_client=None):
+    """运行四轮无记忆对话演示。"""
+    active_client = api_client if api_client is not None else create_model_client()
+    print("=" * 60)
+    print("无记忆 Agent 演示")
+    print("=" * 60)
+    print("观察：每一轮对话都是独立的，Agent 不记得上一轮说过什么")
+    print()
 
-# 第 1 轮：告诉 Agent 用户身份和偏好
-print("【第 1 轮】告知身份和偏好")
-print("-" * 40)
-q1 = "我是一个 Python 开发者，主要做后端开发，喜欢简洁的回答。"
-print(f"用户：{q1}")
-a1 = chat_without_memory(q1)
-print(f"Agent：{a1[:200]}{'...' if len(a1) > 200 else ''}")
+    questions = (
+        ("【第 1 轮】告知身份和偏好", "我是一个 Python 开发者，主要做后端开发，喜欢简洁的回答。"),
+        ("【第 2 轮】推荐 Web 框架", "帮我推荐一个 Web 框架"),
+        ("【第 3 轮】询问缓存方案", "怎么给我的项目加缓存？"),
+        ("【第 4 轮】模拟重启后继续昨天的话题", "继续昨天的话题，帮我选一个数据库方案。"),
+    )
+    for title, question in questions:
+        print(f"\n{title}")
+        print("-" * 40)
+        print(f"用户：{question}")
+        answer = chat_without_memory(question, api_client=active_client)
+        print(f"Agent：{answer[:300]}{'...' if len(answer) > 300 else ''}")
 
-# 第 2 轮：问 Web 框架推荐（Agent 应该不记得你是 Python 开发者）
-print("\n【第 2 轮】推荐 Web 框架")
-print("-" * 40)
-q2 = "帮我推荐一个 Web 框架"
-print(f"用户：{q2}")
-a2 = chat_without_memory(q2)
-print(f"Agent：{a2[:300]}{'...' if len(a2) > 300 else ''}")
-print()
-print("  ⚠️  注意：Agent 不知道你是 Python 开发者，可能推荐了各种语言的框架")
+    print()
+    print("=" * 60)
+    print("总结：无记忆 Agent 的问题")
+    print("  1. 每轮对话独立，无法利用用户的历史信息")
+    print("  2. 推荐不够个性化，无法针对用户的技术栈")
+    print("  3. 重启后完全失忆，用户需要重复介绍自己")
+    print("  → 运行 d4_3_with_memory.py 查看有记忆版本的效果对比")
 
-# 第 3 轮：问缓存方案（Agent 应该不记得你喜欢简洁回答）
-print("\n【第 3 轮】询问缓存方案")
-print("-" * 40)
-q3 = "怎么给我的项目加缓存？"
-print(f"用户：{q3}")
-a3 = chat_without_memory(q3)
-print(f"Agent：{a3[:300]}{'...' if len(a3) > 300 else ''}")
-print()
-print("  ⚠️  注意：Agent 不记得你喜欢简洁回答，可能给了很长的解释")
 
-# 第 4 轮：模拟"第二天"重新打开
-print("\n【第 4 轮】模拟重启后继续昨天的话题")
-print("-" * 40)
-q4 = "继续昨天的话题，帮我选一个数据库方案。"
-print(f"用户：{q4}")
-a4 = chat_without_memory(q4)
-print(f"Agent：{a4[:300]}{'...' if len(a4) > 300 else ''}")
-print()
-print("  ⚠️  注意：Agent 完全不知道'昨天的话题'是什么")
+def main() -> int:
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
+    with create_model_client() as model_client:
+        run_demo(api_client=model_client)
+    return 0
 
-print()
-print("=" * 60)
-print("总结：无记忆 Agent 的问题")
-print("  1. 每轮对话独立，无法利用用户的历史信息")
-print("  2. 推荐不够个性化，无法针对用户的技术栈")
-print("  3. 重启后完全失忆，用户需要重复介绍自己")
-print("  → 运行 d4_3_with_memory.py 查看有记忆版本的效果对比")
+
+if __name__ == "__main__":
+    raise SystemExit(main())

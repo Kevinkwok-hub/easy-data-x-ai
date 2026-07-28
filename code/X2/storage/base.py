@@ -11,6 +11,15 @@ from models.example import Example
 class SkillStorage(ABC):
     """Backend-agnostic storage for skills, rules, and examples."""
 
+    def close(self) -> None:
+        """释放后端资源；无状态实现可以使用默认空操作。"""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        self.close()
+
     @abstractmethod
     def init(self, force: bool = False) -> None:
         """Initialize or reset storage collections."""

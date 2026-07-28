@@ -8,8 +8,8 @@ from typing import Any
 
 import pyseekdb
 
-from database.seekdb_client import create_client
-from database.collections import (
+from database.seekdb_client import create_client, ensure_database
+from database.schema import (
     DEFAULT_SEEKDB_PATH,
     EXAMPLES_COLLECTION,
     RULES_COLLECTION,
@@ -61,11 +61,29 @@ class SeekdbStorage(SkillStorage):
         self._examples_col = self.client.get_or_create_collection(EXAMPLES_COLLECTION)
 
     def init(self, force: bool = False) -> None:
+        # 建库边界：集合绑定前先保证目标 database 已存在。
+        ensure_database(path=self.path)
         if force:
             for name in (SKILLS_COLLECTION, RULES_COLLECTION, EXAMPLES_COLLECTION):
                 if self.client.has_collection(name):
                     self.client.delete_collection(name)
         self._bind_collections()
+
+    def close(self) -> None:
+        """释放 pyseekdb 客户端；兼容仅提供上下文管理协议的版本。"""
+        if self._client is None:
+            return
+        close = getattr(self._client, "close", None)
+        if callable(close):
+            close()
+        else:
+            exit_method = getattr(self._client, "__exit__", None)
+            if callable(exit_method):
+                exit_method(None, None, None)
+        self._client = None
+        self._skills_col = None
+        self._rules_col = None
+        self._examples_col = None
 
     def is_initialized(self) -> bool:
         return (
@@ -282,27 +300,27 @@ class SeekdbStorage(SkillStorage):
     # --- search ---
 
     def search_skills(self, query: str, n_results: int = 5) -> list[Skill]:
-        """Hybrid search: vector + full-text via seekdb query()."""
+        """Hybrid search: vector + full-text via seekdb hybrid_search()."""
         self._ensure_collections()
         if not query.strip():
             return self.list_skills()
 
+        # 混合检索边界：全文与向量两路结果由 seekdb 使用 RRF 排序。
         kwargs: dict[str, Any] = {
-            "query_texts": [query],
+            "query": {
+                "where_document": {"$contains": query},
+                "n_results": n_results,
+            },
+            "knn": {
+                "query_texts": [query],
+                "n_results": n_results,
+            },
+            "rank": {"rrf": {}},
             "n_results": n_results,
+            "include": ["metadatas"],
         }
-        # Full-text leg when query has usable tokens
-        if len(query.strip()) >= 2:
-            kwargs["where_document"] = {"$contains": query}
 
-        try:
-            result = self._skills_col.query(**kwargs)
-        except Exception:
-            # Fallback: metadata filter on name/description not available — list all
-            return [
-                s for s in self.list_skills()
-                if query.lower() in s.name.lower() or query.lower() in s.description.lower()
-            ][:n_results]
+        result = self._skills_col.hybrid_search(**kwargs)
 
         skills = []
         for doc_id, meta in zip(result.get("ids", [[]])[0], result.get("metadatas", [[]])[0]):

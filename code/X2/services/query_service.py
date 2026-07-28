@@ -15,6 +15,7 @@ class QueryService:
     """Service for querying skills, rules, and examples."""
 
     def __init__(self, storage_or_path: SkillStorage | str):
+        self._owns_storage = isinstance(storage_or_path, str)
         if isinstance(storage_or_path, str):
             self.storage = create_storage(storage_or_path)
         else:
@@ -22,7 +23,17 @@ class QueryService:
 
     @classmethod
     def from_path(cls, db_path: str) -> "QueryService":
-        return cls(create_storage(db_path))
+        return cls(db_path)
+
+    def close(self) -> None:
+        if self._owns_storage:
+            self.storage.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        self.close()
 
     def get_skill_complete(self, skill_name: str) -> Optional[Dict[str, Any]]:
         skill = self.storage.get_skill_by_name(skill_name)

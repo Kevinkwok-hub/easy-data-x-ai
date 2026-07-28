@@ -82,7 +82,11 @@ class DatabaseInitializationTests(unittest.TestCase):
         }
 
         with (
-            patch.object(init_seekdb, "ensure_database", side_effect=lambda: calls.append("ensure")),
+            patch.object(
+                init_seekdb,
+                "ensure_database",
+                side_effect=lambda **_kwargs: calls.append("ensure"),
+            ),
             patch.object(
                 init_seekdb,
                 "check_connection",
@@ -101,7 +105,11 @@ class DatabaseInitializationTests(unittest.TestCase):
         storage.is_initialized.return_value = True
 
         with (
-            patch.object(migrate, "ensure_database", side_effect=lambda: calls.append("ensure")),
+            patch.object(
+                migrate,
+                "ensure_database",
+                side_effect=lambda **_kwargs: calls.append("ensure"),
+            ),
             patch.object(
                 migrate,
                 "check_connection",

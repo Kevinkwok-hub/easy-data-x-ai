@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from storage import create_storage
-from database.collections import DEFAULT_SEEKDB_PATH
+from database.schema import DEFAULT_SEEKDB_PATH
 from database.seekdb_client import check_connection, ensure_database
 
 
@@ -31,7 +31,11 @@ def main():
     )
     args = parser.parse_args()
 
-    ensure_database()
+    try:
+        ensure_database(path=args.db_path)
+    except (ConnectionError, ValueError) as exc:
+        print(exc)
+        sys.exit(1)
 
     ok, message = check_connection(args.db_path)
     if not ok:
@@ -39,11 +43,14 @@ def main():
         sys.exit(1)
 
     storage = create_storage(args.db_path)
-    storage.init(force=args.force)
-    print(f"✓ seekdb ready: {args.db_path}")
-    summary = storage.get_migration_summary()
-    print(f"  Skills: {summary['skill_count']}, Rules: {summary['rule_count']}, "
-          f"Examples: {summary['example_count']}")
+    try:
+        storage.init(force=args.force)
+        print(f"✓ seekdb ready: {args.db_path}")
+        summary = storage.get_migration_summary()
+        print(f"  Skills: {summary['skill_count']}, Rules: {summary['rule_count']}, "
+              f"Examples: {summary['example_count']}")
+    finally:
+        storage.close()
 
 
 if __name__ == "__main__":

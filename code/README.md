@@ -23,8 +23,27 @@ code/
 
 ### 1. 安装依赖
 
+以下命令均从仓库根目录执行。建议使用独立虚拟环境，避免系统中旧版
+`pyseekdb` 影响示例退出和资源释放：
+
+macOS/Linux：
+
 ```bash
-pip install --upgrade -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r code/requirements-test.txt
+python -m pip check
+```
+
+Windows PowerShell：
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r code/requirements-test.txt
+python -m pip check
 ```
 
 ### 2. 配置 API Key
@@ -58,14 +77,14 @@ DASHSCOPE_API_KEY=your_dashscope_api_key_here
 macOS/Linux：
 
 ```bash
-cd D1
+cd code/D1
 python3 d1_1_base.py
 ```
 
 Windows PowerShell：
 
 ```powershell
-cd D1
+cd code/D1
 python d1_1_base.py
 ```
 
@@ -75,6 +94,46 @@ python d1_1_base.py
 
 - `Config.get_siliconflow_config()` - 获取 SiliconFlow API 配置
 - `Config.get_dashscope_config()` - 获取阿里云 DashScope API 配置
+
+## 运行条件
+
+| 模块 | 运行条件 |
+| --- | --- |
+| X1 | 纯 Python 标准库，不需要 API Key |
+| D1/d1_1～d1_5 | 需要 `SILICONFLOW_API_KEY`；d1_5 还需要 seekdb |
+| D1/d1_6 | 需要 `DASHSCOPE_API_KEY`，模型为 `qwen-plus`，并需要 seekdb |
+| D2 | 需要 seekdb；语义分块对比还需要 `SILICONFLOW_API_KEY` |
+| D3/D4 | 模型示例需要 `SILICONFLOW_API_KEY`，并需要 seekdb |
+| X2 | Embedded 模式无需外部服务；Server 模式需要先启动 seekdb Server |
+| X5 | 需要安装 MCP 依赖，并准备好 X2 的本地数据 |
+| P5 | 默认使用确定性离线 Agent；LangSmith 上报为可选功能 |
+
+Linux 可以使用默认 Embedded 模式。macOS / Windows 请启动隔离的 seekdb
+Server，并显式配置：
+
+```bash
+export SEEKDB_MODE=server
+export SEEKDB_HOST=127.0.0.1
+export SEEKDB_PORT=2881
+export SEEKDB_DATABASE=easy_data_x_ai_demo
+export SEEKDB_ALLOW_DESTRUCTIVE=1
+```
+
+最后一个变量允许示例重建集合，只能用于专门的演示/测试数据库，禁止对生产库设置。
+
+## 测试
+
+在仓库根目录运行：
+
+```bash
+.venv/bin/python code/run_tests.py
+.venv/bin/python -m compileall -q code
+npm run docs:build
+```
+
+`code/run_tests.py` 会显式运行配置、D1～D4、X1、X2、X5 和 P5 测试，
+并在任意测试组执行 0 个测试或跳过测试时返回失败。CI 使用离线模型替身和临时数据库；
+需要 API Key 的真实模型调用应在本地单独执行并与离线测试结果分开记录。
 
 ## 说明
 

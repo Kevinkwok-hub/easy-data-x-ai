@@ -8,7 +8,7 @@ import time
 import math
 import uuid
 from openai import OpenAI
-import pyseekdb
+from seekdb_runtime import create_seekdb_client, require_destructive_seekdb_access
 
 # ============================================================
 # d4_4：完整记忆 Agent（交互式）
@@ -47,12 +47,13 @@ memory_col = None
 def initialize_runtime(*, api_client=None, database=None):
     """显式创建外部依赖，并复用持久化记忆集合。"""
     global client, db, memory_col
+    require_destructive_seekdb_access("写入 D4 持久化记忆库")
     client = api_client if api_client is not None else OpenAI(
         api_key=Config.SILICONFLOW_API_KEY,
         base_url=Config.SILICONFLOW_BASE_URL,
     )
-    db = database if database is not None else pyseekdb.Client(
-        path=str(MEMORY_DB_PATH)
+    db = database if database is not None else create_seekdb_client(
+        path=MEMORY_DB_PATH
     )
     if db.has_collection(MEMORY_COLLECTION):
         memory_col = db.get_collection(name=MEMORY_COLLECTION)
@@ -61,6 +62,30 @@ def initialize_runtime(*, api_client=None, database=None):
         memory_col = db.create_collection(name=MEMORY_COLLECTION)
         print(">>> 首次运行，记忆库已创建")
     return memory_col
+
+
+def close_runtime():
+    """显式释放数据库连接和运行时引用。"""
+    global client, db, memory_col
+    active_client = client
+    active_database = db
+    try:
+        if active_client is not None:
+            close_client = getattr(active_client, "close", None)
+            if callable(close_client):
+                close_client()
+        if active_database is not None:
+            close = getattr(active_database, "close", None)
+            if callable(close):
+                close()
+            else:
+                exit_context = getattr(active_database, "__exit__", None)
+                if callable(exit_context):
+                    exit_context(None, None, None)
+    finally:
+        client = None
+        db = None
+        memory_col = None
 
 
 def _require_model_client(api_client=None):
@@ -75,6 +100,18 @@ def _require_memory_collection(collection=None):
     if active_collection is None:
         raise RuntimeError("请先调用 initialize_runtime() 初始化记忆库")
     return active_collection
+
+
+def _response_content(response, *, allow_empty=False):
+    """读取模型响应；事实提炼可对空响应安全降级。"""
+    choices = getattr(response, "choices", None)
+    message = getattr(choices[0], "message", None) if choices else None
+    content = getattr(message, "content", None) if message is not None else None
+    if isinstance(content, str) and content.strip():
+        return content
+    if allow_empty:
+        return None
+    raise RuntimeError("模型返回空响应：缺少 choices、message 或 content")
 
 
 # ---------- 2. 程序记忆（System Prompt）----------
@@ -111,7 +148,10 @@ def extract_facts(user_input: str, assistant_reply: str, *, api_client=None) -> 
         temperature=0.1,
     )
 
-    content = response.choices[0].message.content.strip()
+    content = _response_content(response, allow_empty=True)
+    if content is None:
+        return []
+    content = content.strip()
     try:
         if "```" in content:
             content = content.split("```")[1]
@@ -166,11 +206,29 @@ def recall_memory(query: str, top_k: int = 5, *, collection=None) -> list[str]:
     current_time = time.time()
     weighted = []
 
-    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+    ids = results.get("ids", [[]])[0]
+    updated_ids = []
+    updated_metadatas = []
+    for memory_id, doc, meta in zip(
+        ids,
+        results["documents"][0],
+        results["metadatas"][0],
+    ):
         # 时效性权重：30天半衰期的指数衰减
         age_days = (current_time - meta["created_at"]) / 86400
         weight = math.exp(-age_days / 30) + meta.get("access_count", 0) * 0.1
         weighted.append((doc, weight))
+        updated_metadata = dict(meta)
+        updated_metadata["access_count"] = meta.get("access_count", 0) + 1
+        updated_ids.append(memory_id)
+        updated_metadatas.append(updated_metadata)
+
+    # 只更新本次检索实际返回的记忆 ID。
+    if updated_ids:
+        active_collection.update(
+            ids=updated_ids,
+            metadatas=updated_metadatas,
+        )
 
     weighted.sort(key=lambda x: x[1], reverse=True)
     return [m[0] for m in weighted]
@@ -231,7 +289,7 @@ def chat(
         model=MODEL,
         messages=messages
     )
-    reply = response.choices[0].message.content
+    reply = _response_content(response)
 
     # 4. 提炼并存储新记忆
     facts = extract_facts(user_input, reply, api_client=active_client)
@@ -285,10 +343,19 @@ def run_interactive():
         print()
 
 
-def main():
-    initialize_runtime()
-    run_interactive()
+def main() -> int:
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
+    try:
+        initialize_runtime()
+        run_interactive()
+    finally:
+        close_runtime()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

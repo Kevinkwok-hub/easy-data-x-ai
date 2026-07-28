@@ -13,7 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from services import QueryService, SkillService
-from database.collections import DEFAULT_SEEKDB_PATH
+from storage import create_storage
+from database.schema import DEFAULT_SEEKDB_PATH
 
 DB_PATH = str(Path(__file__).parent / DEFAULT_SEEKDB_PATH)
 
@@ -22,8 +23,8 @@ def estimate_tokens(text: str) -> int:
     return len(text) // 3
 
 
-def full_injection_context() -> tuple[str, int]:
-    service = SkillService(DB_PATH)
+def full_injection_context(storage=None) -> tuple[str, int]:
+    service = SkillService(storage or DB_PATH)
     skills = service.list_skills()
     parts = []
     for skill in skills:
@@ -32,8 +33,8 @@ def full_injection_context() -> tuple[str, int]:
     return context, estimate_tokens(context)
 
 
-def on_demand_context(user_query: str) -> tuple[str, int]:
-    query_service = QueryService(DB_PATH)
+def on_demand_context(user_query: str, storage=None) -> tuple[str, int]:
+    query_service = QueryService(storage or DB_PATH)
     matched = query_service.search_skills(user_query, n_results=2)
     if not matched:
         matched = query_service.search_skills("documentation", n_results=1)
@@ -59,11 +60,13 @@ def main():
     print("=" * 60)
     print(f"\n用户请求: {user_query}\n")
 
-    full_ctx, full_tokens = full_injection_context()
-    on_demand_ctx, on_demand_tokens = on_demand_context(user_query)
+    with create_storage(DB_PATH) as storage:
+        full_ctx, full_tokens = full_injection_context(storage)
+        on_demand_ctx, on_demand_tokens = on_demand_context(user_query, storage)
+        skill_count = len(SkillService(storage).list_skills())
 
     print("【方式一】全量注入")
-    print(f"  加载 Skill 数: {len(SkillService(DB_PATH).list_skills())}")
+    print(f"  加载 Skill 数: {skill_count}")
     print(f"  上下文字符数: {len(full_ctx):,}")
     print(f"  估算 Token 数: ~{full_tokens:,}")
 

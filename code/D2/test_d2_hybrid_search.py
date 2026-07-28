@@ -1,11 +1,8 @@
 import io
-import runpy
-import sys
-import types
 import unittest
 from contextlib import redirect_stdout
-from pathlib import Path
-from unittest.mock import patch
+
+from D2.d2_3_hybrid_search import run_demo
 
 
 class FakeCollection:
@@ -24,29 +21,12 @@ class FakeCollection:
         }
 
 
-class FakeDatabase:
-    def __init__(self, collection):
-        self.collection = collection
-
-    def has_collection(self, _name):
-        return True
-
-    def get_collection(self, _name):
-        return self.collection
-
-
 class HybridSearchExampleTests(unittest.TestCase):
     def test_filtered_hybrid_search_filters_both_search_branches(self):
         collection = FakeCollection()
-        fake_pyseekdb = types.ModuleType("pyseekdb")
-        fake_pyseekdb.Client = lambda: FakeDatabase(collection)
-        script_path = Path(__file__).with_name("d2_3_hybrid_search.py")
 
-        with (
-            patch.dict(sys.modules, {"pyseekdb": fake_pyseekdb}),
-            redirect_stdout(io.StringIO()),
-        ):
-            runpy.run_path(script_path)
+        with redirect_stdout(io.StringIO()):
+            run_demo(collection)
 
         filtered_call = collection.hybrid_calls[2]
         self.assertEqual(

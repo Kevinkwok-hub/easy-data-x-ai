@@ -3,7 +3,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import pyseekdb
+from seekdb_runtime import create_seekdb_client, require_destructive_seekdb_access
 
 # ============================================================
 # d3_1：构建知识库
@@ -110,12 +110,15 @@ COLLECTION_NAME = "d3_product_kb"
 
 def create_db_client():
     """创建路径稳定的 seekdb 客户端。"""
-    return pyseekdb.Client(path=str(DATABASE_PATH))
+    return create_seekdb_client(path=DATABASE_PATH)
 
 
-def build_knowledge_base(database):
+def build_knowledge_base(database, *, embedding_function=None):
     """复用固定集合，并用 upsert 幂等写入知识片段。"""
-    collection = database.get_or_create_collection(name=COLLECTION_NAME)
+    collection_kwargs = {"name": COLLECTION_NAME}
+    if embedding_function is not None:
+        collection_kwargs["embedding_function"] = embedding_function
+    collection = database.get_or_create_collection(**collection_kwargs)
     collection.upsert(
         ids=[chunk["id"] for chunk in knowledge_chunks],
         documents=[chunk["content"] for chunk in knowledge_chunks],
@@ -128,6 +131,7 @@ def build_knowledge_base(database):
 
 
 def main():
+    require_destructive_seekdb_access("写入 D3 产品知识库")
     print(">>> 正在初始化 seekdb...")
     with create_db_client() as database:
         collection = build_knowledge_base(database)
@@ -145,4 +149,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main() or 0)
