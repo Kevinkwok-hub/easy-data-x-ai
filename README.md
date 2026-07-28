@@ -246,7 +246,7 @@ python d1_1_base.py
     <img src="https://avatars.githubusercontent.com/u/13233790?v=4&s=144" width="72" height="72" alt="liboyang0730" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/liboyang0730" title="打开 liboyang0730 的 GitHub 主页"><kbd><strong>liboyang073…</strong></kbd></a><br />
-  <sub>91 commits</sub>
+  <sub>92 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/knqiufan" title="knqiufan">
@@ -256,17 +256,17 @@ python d1_1_base.py
   <sub>10 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
-  <a href="https://github.com/haoye2" title="haoye2">
-    <img src="https://avatars.githubusercontent.com/u/199622891?v=4&s=144" width="72" height="72" alt="haoye2" style="border-radius:50%;" />
-  </a><br />
-  <a href="https://github.com/haoye2" title="打开 haoye2 的 GitHub 主页"><kbd><strong>haoye2</strong></kbd></a><br />
-  <sub>6 commits</sub>
-</td>
-<td align="center" valign="top" width="104">
   <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
     <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
+  <sub>10 commits</sub>
+</td>
+<td align="center" valign="top" width="104">
+  <a href="https://github.com/haoye2" title="haoye2">
+    <img src="https://avatars.githubusercontent.com/u/199622891?v=4&s=144" width="72" height="72" alt="haoye2" style="border-radius:50%;" />
+  </a><br />
+  <a href="https://github.com/haoye2" title="打开 haoye2 的 GitHub 主页"><kbd><strong>haoye2</strong></kbd></a><br />
   <sub>6 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
