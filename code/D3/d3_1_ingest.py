@@ -1,4 +1,5 @@
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -103,34 +104,45 @@ knowledge_chunks = [
 
 # ---------- 2. 初始化 seekdb 并写入数据 ----------
 
-print(">>> 正在初始化 seekdb...")
-db = pyseekdb.Client()
-collection_name = "d3_product_kb"
+DATABASE_PATH = Path(__file__).resolve().parent / "d3_seekdb"
+COLLECTION_NAME = "d3_product_kb"
 
-# 如果已存在则先删除，确保每次运行都是干净的
-if db.has_collection(collection_name):
-    db.delete_collection(collection_name)
-    print(f">>> 已删除旧集合：{collection_name}")
 
-collection = db.create_collection(name=collection_name)
-print(f">>> 集合创建成功：{collection_name}\n")
+def create_db_client():
+    """创建路径稳定的 seekdb 客户端。"""
+    return pyseekdb.Client(path=str(DATABASE_PATH))
 
-# 批量写入
-collection.add(
-    ids=[chunk["id"] for chunk in knowledge_chunks],
-    documents=[chunk["content"] for chunk in knowledge_chunks],
-    metadatas=[{"doc_type": chunk["doc_type"], "version": chunk["version"]} for chunk in knowledge_chunks],
-)
 
-print(f">>> 已写入 {collection.count()} 个知识片段")
-print()
+def build_knowledge_base(database):
+    """复用固定集合，并用 upsert 幂等写入知识片段。"""
+    collection = database.get_or_create_collection(name=COLLECTION_NAME)
+    collection.upsert(
+        ids=[chunk["id"] for chunk in knowledge_chunks],
+        documents=[chunk["content"] for chunk in knowledge_chunks],
+        metadatas=[
+            {"doc_type": chunk["doc_type"], "version": chunk["version"]}
+            for chunk in knowledge_chunks
+        ],
+    )
+    return collection
 
-# 展示写入的数据分布
-from collections import Counter
-type_counts = Counter(chunk["doc_type"] for chunk in knowledge_chunks)
-print(">>> 知识库内容分布：")
-for doc_type, count in type_counts.items():
-    print(f"    {doc_type}: {count} 条")
 
-print()
-print(">>> d3_1 完成！知识库已就绪，可运行 d3_2 / d3_3 继续体验。")
+def main():
+    print(">>> 正在初始化 seekdb...")
+    with create_db_client() as database:
+        collection = build_knowledge_base(database)
+        print(f">>> 集合已就绪：{COLLECTION_NAME}\n")
+        print(f">>> 已写入或更新 {collection.count()} 个知识片段")
+        print()
+
+        type_counts = Counter(chunk["doc_type"] for chunk in knowledge_chunks)
+        print(">>> 知识库内容分布：")
+        for doc_type, count in type_counts.items():
+            print(f"    {doc_type}: {count} 条")
+
+    print()
+    print(">>> d3_1 完成！知识库已就绪，可运行 d3_2 / d3_3 继续体验。")
+
+
+if __name__ == "__main__":
+    main()

@@ -20,11 +20,11 @@ from database.seekdb_client import check_connection, ensure_database
 
 
 def ensure_storage(db_path: str) -> None:
+    ensure_database()
     ok, message = check_connection(db_path)
     if not ok:
         print(message)
         sys.exit(1)
-    ensure_database()
     storage = create_storage(db_path)
     if not storage.is_initialized():
         print(f"seekdb not initialized: {db_path}")

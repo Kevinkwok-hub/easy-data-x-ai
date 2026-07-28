@@ -32,8 +32,8 @@ jobs:
       - name: Build docs
         run: npm run docs:build
 
-  python-compile:
-    name: Python Syntax Check
+  python-tests:
+    name: Python Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -45,5 +45,13 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r code/requirements-test.txt
+
+      - name: Run Python tests
+        run: python code/run_tests.py
+
       - name: Compile Python examples
-        run: python -m compileall code
+        run: python -m compileall -q code

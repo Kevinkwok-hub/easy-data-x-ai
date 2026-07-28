@@ -16,10 +16,24 @@ class DashboardConfigTest(unittest.TestCase):
         services = compose["services"]
 
         self.assertEqual(set(services), {"agent", "prometheus", "grafana"})
-        self.assertEqual(services["agent"]["ports"], ["8000:8000"])
-        self.assertEqual(services["prometheus"]["ports"], ["9090:9090"])
-        self.assertEqual(services["grafana"]["ports"], ["3000:3000"])
+        self.assertEqual(services["agent"]["ports"], ["127.0.0.1:8000:8000"])
+        self.assertEqual(services["prometheus"]["ports"], ["127.0.0.1:9090:9090"])
+        self.assertEqual(services["grafana"]["ports"], ["127.0.0.1:3000:3000"])
         self.assertEqual(services["agent"]["environment"]["ENVIRONMENT"], "docker")
+        self.assertEqual(services["grafana"]["environment"]["GF_AUTH_ANONYMOUS_ORG_ROLE"], "Viewer")
+        self.assertEqual(
+            services["grafana"]["environment"]["GF_SECURITY_ADMIN_USER"],
+            "${GRAFANA_ADMIN_USER:-admin}",
+        )
+        self.assertTrue(
+            services["grafana"]["environment"]["GF_SECURITY_ADMIN_PASSWORD"].startswith(
+                "${GRAFANA_ADMIN_PASSWORD:?"
+            )
+        )
+        self.assertNotEqual(
+            services["grafana"]["environment"]["GF_SECURITY_ADMIN_PASSWORD"],
+            "admin",
+        )
 
     def test_prometheus_scrapes_agent_metrics_endpoint(self) -> None:
         config = yaml.safe_load((ROOT / "prometheus" / "prometheus.yml").read_text(encoding="utf-8"))

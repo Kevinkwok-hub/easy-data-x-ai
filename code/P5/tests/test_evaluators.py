@@ -8,7 +8,7 @@ from pathlib import Path
 from app.agent import KnowledgeAgent
 from app.evaluation.evaluators import evaluate_cases, load_eval_cases
 from app.evaluation.report import write_evaluation_reports
-from app.schemas import AgentResult
+from app.schemas import AgentResult, EvalCase
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,6 +49,24 @@ class KnowledgeAgentTest(unittest.TestCase):
 
 
 class EvaluatorTest(unittest.TestCase):
+    def test_eval_case_rejects_non_boolean_expected_fields(self) -> None:
+        raw = {
+            "task_id": "strict-bool",
+            "query": "问题",
+            "category": "general",
+            "expected_answer_contains": "答案",
+            "expected_retrieval_hit": "false",
+            "expected_knowledge_available": True,
+            "expected_tool_called": False,
+            "expected_tool_success": False,
+            "expected_handoff": False,
+            "expected_task_success": True,
+            "expected_hallucinated": False,
+        }
+
+        with self.assertRaisesRegex((TypeError, ValueError), "bool|布尔"):
+            EvalCase.from_mapping(raw)
+
     def test_evaluator_calculates_retrieval_hit_rate(self) -> None:
         report = evaluate_cases(load_eval_cases(DATASET), KnowledgeAgent())
         self.assertEqual(report.metrics["retrieval_hit_rate"], round(23 / 24, 4))

@@ -94,19 +94,25 @@ class EvalCase:
     @classmethod
     def from_mapping(cls, raw: dict[str, Any]) -> "EvalCase":
         """从 JSONL 单行构造评测样本；这里集中做字段读取，便于定位坏数据。"""
+        def strict_bool(field_name: str, default: bool | None = None) -> bool:
+            value = raw.get(field_name, default)
+            if type(value) is not bool:
+                raise TypeError(f"{field_name} 必须是 bool 布尔值")
+            return value
+
         return cls(
             task_id=str(raw["task_id"]),
             query=str(raw["query"]),
             category=str(raw["category"]),
             expected_answer_contains=str(raw["expected_answer_contains"]),
-            expected_retrieval_hit=bool(raw["expected_retrieval_hit"]),
-            expected_retrieval_failed=bool(raw.get("expected_retrieval_failed", False)),
-            expected_knowledge_available=bool(raw["expected_knowledge_available"]),
-            expected_tool_called=bool(raw["expected_tool_called"]),
-            expected_tool_success=bool(raw["expected_tool_success"]),
-            expected_handoff=bool(raw["expected_handoff"]),
-            expected_task_success=bool(raw["expected_task_success"]),
-            expected_hallucinated=bool(raw["expected_hallucinated"]),
+            expected_retrieval_hit=strict_bool("expected_retrieval_hit"),
+            expected_retrieval_failed=strict_bool("expected_retrieval_failed", False),
+            expected_knowledge_available=strict_bool("expected_knowledge_available"),
+            expected_tool_called=strict_bool("expected_tool_called"),
+            expected_tool_success=strict_bool("expected_tool_success"),
+            expected_handoff=strict_bool("expected_handoff"),
+            expected_task_success=strict_bool("expected_task_success"),
+            expected_hallucinated=strict_bool("expected_hallucinated"),
         )
 
     def to_dict(self) -> dict[str, Any]:

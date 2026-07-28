@@ -7,7 +7,7 @@ Parses SKILL.md files and extracts frontmatter (YAML) and content.
 import re
 import yaml
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Mapping, Optional
 
 
 class MarkdownParser:
@@ -57,9 +57,15 @@ class MarkdownParser:
         else:
             frontmatter = {}
             body_content = content
-        
+
+        if not isinstance(frontmatter, Mapping):
+            raise ValueError("frontmatter 必须是 YAML 映射")
+
         # Extract basic information
         name = frontmatter.get('name', '')
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("frontmatter.name 必须是非空字符串")
+        name = name.strip()
         description = frontmatter.get('description', '')
         
         category = self._extract_category(name, frontmatter)

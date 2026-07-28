@@ -102,8 +102,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 cd code/P5
-docker compose up --build
+GRAFANA_ADMIN_PASSWORD='请替换为本地强密码' docker compose up --build
 ```
+
+`GRAFANA_ADMIN_PASSWORD` 必须显式提供；可选设置 `GRAFANA_ADMIN_USER`，
+未设置用户名时默认为 `admin`。匿名访问仍限制为只读 `Viewer`。
 
 启动后访问：
 

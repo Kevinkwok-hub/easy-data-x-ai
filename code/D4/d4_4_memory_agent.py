@@ -6,6 +6,7 @@ from config import Config
 import json
 import time
 import math
+import uuid
 from openai import OpenAI
 import pyseekdb
 
@@ -33,23 +34,47 @@ import pyseekdb
 
 # ---------- 1. 初始化 ----------
 
-client = OpenAI(
-    api_key=Config.SILICONFLOW_API_KEY,
-    base_url=Config.SILICONFLOW_BASE_URL,
-)
 MODEL = "deepseek-ai/DeepSeek-V3"
-
-# 记忆库持久化存储（不同于 d4_3，这里不重置，支持跨会话）
-db = pyseekdb.Client(path="./memory_persistent.db")
 MEMORY_COLLECTION = "user_memory_persistent"
+D4_DIR = Path(__file__).resolve().parent
+MEMORY_DB_PATH = D4_DIR / "memory_persistent.db"
 
-# 如果集合不存在则创建（已存在则复用，保留历史记忆）
-if not db.has_collection(MEMORY_COLLECTION):
-    memory_col = db.create_collection(name=MEMORY_COLLECTION)
-    print(">>> 首次运行，记忆库已创建")
-else:
-    memory_col = db.get_collection(name=MEMORY_COLLECTION)
-    print(f">>> 已加载历史记忆库，当前记忆数量：{memory_col.count()}")
+client = None
+db = None
+memory_col = None
+
+
+def initialize_runtime(*, api_client=None, database=None):
+    """显式创建外部依赖，并复用持久化记忆集合。"""
+    global client, db, memory_col
+    client = api_client if api_client is not None else OpenAI(
+        api_key=Config.SILICONFLOW_API_KEY,
+        base_url=Config.SILICONFLOW_BASE_URL,
+    )
+    db = database if database is not None else pyseekdb.Client(
+        path=str(MEMORY_DB_PATH)
+    )
+    if db.has_collection(MEMORY_COLLECTION):
+        memory_col = db.get_collection(name=MEMORY_COLLECTION)
+        print(f">>> 已加载历史记忆库，当前记忆数量：{memory_col.count()}")
+    else:
+        memory_col = db.create_collection(name=MEMORY_COLLECTION)
+        print(">>> 首次运行，记忆库已创建")
+    return memory_col
+
+
+def _require_model_client(api_client=None):
+    active_client = api_client if api_client is not None else client
+    if active_client is None:
+        raise RuntimeError("请先调用 initialize_runtime() 初始化模型客户端")
+    return active_client
+
+
+def _require_memory_collection(collection=None):
+    active_collection = collection if collection is not None else memory_col
+    if active_collection is None:
+        raise RuntimeError("请先调用 initialize_runtime() 初始化记忆库")
+    return active_collection
 
 
 # ---------- 2. 程序记忆（System Prompt）----------
@@ -67,7 +92,7 @@ BASE_SYSTEM_PROMPT = """你是一个友好、专业的技术助手。
 
 # ---------- 3. 记忆管理函数 ----------
 
-def extract_facts(user_input: str, assistant_reply: str) -> list[str]:
+def extract_facts(user_input: str, assistant_reply: str, *, api_client=None) -> list[str]:
     """用 LLM 从对话中提炼关键事实"""
     prompt = f"""从以下对话中提取关于用户的关键事实和偏好。
 只提取明确的、关于这位用户的信息（身份、技术栈、偏好、经历、踩过的坑等）。
@@ -80,7 +105,7 @@ def extract_facts(user_input: str, assistant_reply: str) -> list[str]:
 以 JSON 数组格式返回，每个元素是一条事实字符串。
 如果没有值得记录的信息，返回：[]"""
 
-    response = client.chat.completions.create(
+    response = _require_model_client(api_client).chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
@@ -110,25 +135,30 @@ def extract_facts(user_input: str, assistant_reply: str) -> list[str]:
         return []
 
 
-def save_memory(facts: list[str]):
+def save_memory(facts: list[str], *, collection=None):
     """将事实存入记忆库"""
     if not facts:
         return
 
     current_time = time.time()
-    ids = [f"mem_{int(current_time)}_{i}" for i in range(len(facts))]
+    ids = [str(uuid.uuid4()) for _ in facts]
     metadatas = [{"created_at": current_time, "access_count": 0} for _ in facts]
 
-    memory_col.add(ids=ids, documents=facts, metadatas=metadatas)
+    _require_memory_collection(collection).add(
+        ids=ids,
+        documents=facts,
+        metadatas=metadatas,
+    )
 
 
-def recall_memory(query: str, top_k: int = 5) -> list[str]:
+def recall_memory(query: str, top_k: int = 5, *, collection=None) -> list[str]:
     """检索相关记忆，带时效性权重"""
-    if memory_col.count() == 0:
+    active_collection = _require_memory_collection(collection)
+    if active_collection.count() == 0:
         return []
 
-    n = min(top_k, memory_col.count())
-    results = memory_col.query(query_texts=[query], n_results=n)
+    n = min(top_k, active_collection.count())
+    results = active_collection.query(query_texts=[query], n_results=n)
 
     if not results or not results["documents"] or not results["documents"][0]:
         return []
@@ -146,15 +176,16 @@ def recall_memory(query: str, top_k: int = 5) -> list[str]:
     return [m[0] for m in weighted]
 
 
-def show_memory_stats():
+def show_memory_stats(*, collection=None):
     """显示当前记忆库状态"""
-    count = memory_col.count()
+    active_collection = _require_memory_collection(collection)
+    count = active_collection.count()
     if count == 0:
         print("  [记忆库] 暂无记忆")
         return
 
     print(f"  [记忆库] 共 {count} 条记忆：")
-    all_mem = memory_col.get()
+    all_mem = active_collection.get()
     if all_mem and all_mem["documents"]:
         for i, doc in enumerate(all_mem["documents"][-5:], 1):  # 只显示最近 5 条
             print(f"    {i}. {doc}")
@@ -164,7 +195,13 @@ def show_memory_stats():
 
 # ---------- 4. 完整记忆 Agent ----------
 
-def chat(user_input: str, verbose: bool = True) -> str:
+def chat(
+    user_input: str,
+    verbose: bool = True,
+    *,
+    api_client=None,
+    collection=None,
+) -> str:
     """
     完整记忆 Agent：
     - 程序记忆（System Prompt）：定义行为规则
@@ -172,7 +209,7 @@ def chat(user_input: str, verbose: bool = True) -> str:
     - 情景记忆（seekdb）：存储过去的成功经验（本示例简化为同一个库）
     """
     # 1. 检索语义记忆
-    memories = recall_memory(query=user_input, top_k=5)
+    memories = recall_memory(query=user_input, top_k=5, collection=collection)
     memory_text = "\n".join([f"- {m}" for m in memories]) if memories else "暂无已知信息，请在对话中了解用户。"
 
     # 2. 构建带记忆的完整 System Prompt
@@ -189,61 +226,69 @@ def chat(user_input: str, verbose: bool = True) -> str:
     ]
 
     # 3. 调用模型
-    response = client.chat.completions.create(
+    active_client = _require_model_client(api_client)
+    response = active_client.chat.completions.create(
         model=MODEL,
         messages=messages
     )
     reply = response.choices[0].message.content
 
     # 4. 提炼并存储新记忆
-    facts = extract_facts(user_input, reply)
+    facts = extract_facts(user_input, reply, api_client=active_client)
     if facts and verbose:
         print(f"  [记忆提炼] {facts}")
-    save_memory(facts)
+    save_memory(facts, collection=collection)
 
     return reply
 
 
 # ---------- 5. 交互式主循环 ----------
 
-print()
-print("=" * 60)
-print("完整记忆 Agent（交互式）")
-print("=" * 60)
-print("输入 'quit' 或 '退出' 结束对话")
-print("输入 '/memory' 查看当前记忆库")
-print("输入 '/clear' 清空记忆库（重新开始）")
-print()
-
-# 显示当前记忆状态
-show_memory_stats()
-print()
-
-while True:
-    try:
-        user_input = input("你: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print("\n再见！")
-        break
-
-    if not user_input:
-        continue
-
-    if user_input.lower() in ["quit", "exit", "退出"]:
-        print("再见！记忆已保存，下次启动时会自动加载。")
-        break
-
-    if user_input == "/memory":
-        show_memory_stats()
-        continue
-
-    if user_input == "/clear":
-        db.delete_collection(MEMORY_COLLECTION)
-        memory_col = db.create_collection(name=MEMORY_COLLECTION)
-        print("  [记忆库] 已清空")
-        continue
-
+def run_interactive():
+    """启动交互式记忆 Agent。"""
+    global memory_col
     print()
-    reply = chat(user_input, verbose=True)
-    print(f"\nAgent: {reply}")
+    print("=" * 60)
+    print("完整记忆 Agent（交互式）")
+    print("=" * 60)
+    print("输入 'quit' 或 '退出' 结束对话")
+    print("输入 '/memory' 查看当前记忆库")
+    print("输入 '/clear' 清空记忆库（重新开始）")
     print()
+    show_memory_stats()
+    print()
+
+    while True:
+        try:
+            user_input = input("你: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n再见！")
+            break
+
+        if not user_input:
+            continue
+        if user_input.lower() in ["quit", "exit", "退出"]:
+            print("再见！记忆已保存，下次启动时会自动加载。")
+            break
+        if user_input == "/memory":
+            show_memory_stats()
+            continue
+        if user_input == "/clear":
+            db.delete_collection(MEMORY_COLLECTION)
+            memory_col = db.create_collection(name=MEMORY_COLLECTION)
+            print("  [记忆库] 已清空")
+            continue
+
+        print()
+        reply = chat(user_input, verbose=True)
+        print(f"\nAgent: {reply}")
+        print()
+
+
+def main():
+    initialize_runtime()
+    run_interactive()
+
+
+if __name__ == "__main__":
+    main()

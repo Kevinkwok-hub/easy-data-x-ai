@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from prometheus_client import CONTENT_TYPE_LATEST
 
 from app.agent import KnowledgeAgent
@@ -29,12 +29,39 @@ class AskRequest(BaseModel):
     该字段仅用于演示，生产准确率应来自抽样人工标注或独立 Judge。
     """
 
-    query: str = Field(min_length=1, description="User question sent to the Knowledge Agent.")
-    task_id: str | None = Field(default=None, description="Optional caller-provided task identifier.")
+    query: str = Field(
+        min_length=1,
+        max_length=4096,
+        description="User question sent to the Knowledge Agent.",
+    )
+    task_id: str | None = Field(
+        default=None,
+        max_length=128,
+        description="Optional caller-provided task identifier.",
+    )
     expected_answer_contains: str | None = Field(
         default=None,
+        max_length=1024,
         description="Optional key fact used to increment answer-correct metrics in demos.",
     )
+
+    @field_validator("query")
+    @classmethod
+    def normalize_query(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("query 不能是空白字符串")
+        return normalized
+
+    @field_validator("expected_answer_contains")
+    @classmethod
+    def normalize_expected_answer(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("expected_answer_contains 不能是空白字符串")
+        return normalized
 
 
 @app.get("/health")

@@ -5,8 +5,8 @@ services:
     image: oceanbase/seekdb:latest
     container_name: x2-seekdb
     ports:
-      - "2881:2881"
-      - "2886:2886"
+      - "127.0.0.1:2881:2881"
+      - "127.0.0.1:2886:2886"
     volumes:
       - seekdb-data:/var/lib/oceanbase
     environment:

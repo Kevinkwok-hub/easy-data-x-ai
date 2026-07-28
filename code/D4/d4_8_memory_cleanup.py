@@ -19,6 +19,8 @@ d4_8：长期记忆定期清理
 from __future__ import annotations
 
 import math
+import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any, Iterator
@@ -49,8 +51,6 @@ class LifecycleMemoryStore:
     vector_index: set[str] = field(default_factory=set)
     cache: dict[str, str] = field(default_factory=dict)
     archive: dict[str, MemoryItem] = field(default_factory=dict)
-    _seq: int = 0
-
     def add(
         self,
         content: str,
@@ -61,8 +61,7 @@ class LifecycleMemoryStore:
         access_count: int = 0,
         protected: bool = False,
     ) -> MemoryItem:
-        self._seq += 1
-        mem_id = f"mem_{self._seq:03d}"
+        mem_id = str(uuid.uuid4())
         item = MemoryItem(
             id=mem_id,
             content=content,
@@ -75,12 +74,15 @@ class LifecycleMemoryStore:
         self.records[mem_id] = item
         self.vector_index.add(mem_id)
         self.cache[mem_id] = content
-        return item
+        return deepcopy(item)
 
-    def iter_all(self, user_id: str | None = None) -> Iterator[MemoryItem]:
+    def iter_all(self, user_id: str) -> Iterator[MemoryItem]:
+        """按用户范围读取生命周期记忆，并返回副本。"""
+        if not user_id or not user_id.strip():
+            raise ValueError("user_id is required for memory reads")
         for item in self.records.values():
-            if user_id is None or item.user_id == user_id:
-                yield item
+            if item.user_id == user_id:
+                yield deepcopy(item)
 
     def archive_memory(self, memory_id: str) -> None:
         item = self.records.get(memory_id)
@@ -94,12 +96,25 @@ class LifecycleMemoryStore:
         self.vector_index.discard(memory_id)
         self.cache.pop(memory_id, None)
 
-    def delete(self, memory_id: str) -> None:
-        """级联清理：主库 + 向量 + 缓存 + 归档副本"""
+    def delete(self, memory_id: str, requester_id: str) -> bool:
+        """仅所有者可硬删；受保护记忆只能归档，不能直接删除。"""
+        if not requester_id or not requester_id.strip():
+            raise ValueError("requester_id is required for memory deletion")
+        item = self.records.get(memory_id)
+        if item is None:
+            return False
+        if item.user_id != requester_id:
+            raise PermissionError(
+                f"User {requester_id} cannot delete memory owned by {item.user_id}"
+            )
+        if item.protected:
+            raise PermissionError(f"Protected memory {memory_id} cannot be deleted")
+
         self.records.pop(memory_id, None)
         self.archive.pop(memory_id, None)
         self.vector_index.discard(memory_id)
         self.cache.pop(memory_id, None)
+        return True
 
     def searchable_ids(self) -> set[str]:
         return set(self.vector_index)
@@ -124,13 +139,16 @@ def cleanup_memories(
     store: LifecycleMemoryStore,
     now: datetime,
     *,
-    user_id: str | None = None,
+    user_id: str,
     dry_run: bool = True,
 ) -> dict[str, Any]:
     """
     定期清理作业。
     dry_run=True 时只统计将要发生的动作，便于先观测再真正删除。
     """
+    if not user_id or not user_id.strip():
+        raise ValueError("user_id is required for scoped memory cleanup")
+
     stats = {"archived": 0, "deleted": 0, "kept": 0, "protected_skipped": 0}
     actions: list[str] = []
 
@@ -147,7 +165,7 @@ def cleanup_memories(
             stats["deleted"] += 1
             actions.append(f"DELETE {mem.id} R={retention:.2f} idle={idle_days}d")
             if not dry_run:
-                store.delete(mem.id)
+                store.delete(mem.id, requester_id=user_id)
             continue
 
         # 保护字段若已达硬删条件：跳过删除，最多归档
@@ -309,14 +327,15 @@ def main() -> None:
     store = seed_store(now)
 
     print(">>> 已写入 Alice / Bob 的生命周期样例记忆")
-    for item in store.iter_all():
-        r = calc_retention(item, now)
-        idle = (now - item.last_accessed_at).days
-        flag = "protected" if item.protected else "normal"
-        print(
-            f"    [{item.id}] ({item.user_id}) R={r:.2f} idle={idle}d "
-            f"{flag} | {item.content}"
-        )
+    for user_id in ("alice", "bob"):
+        for item in store.iter_all(user_id=user_id):
+            r = calc_retention(item, now)
+            idle = (now - item.last_accessed_at).days
+            flag = "protected" if item.protected else "normal"
+            print(
+                f"    [{item.id}] ({item.user_id}) R={r:.2f} idle={idle}d "
+                f"{flag} | {item.content}"
+            )
 
     demo_dry_run(store, now)
     demo_apply_cleanup(store, now)

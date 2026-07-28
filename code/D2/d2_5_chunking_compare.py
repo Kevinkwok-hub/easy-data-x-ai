@@ -159,13 +159,18 @@ class SeekdbRetriever:
         return contexts
 
 
+def _get_siliconflow_api_key() -> str:
+    """返回去除首尾空白后的 SiliconFlow API Key。"""
+    return Config.SILICONFLOW_API_KEY.strip()
+
+
 def build_embed_fn():
-    api_key = Config.SILICONFLOW_API_KEY
-    if not api_key or api_key == "YOUR_API_KEY":
+    api_key = _get_siliconflow_api_key()
+    if api_key in {"", "YOUR_API_KEY", "your_siliconflow_api_key_here"}:
         raise RuntimeError("语义分块需要 SILICONFLOW_API_KEY，请在 code/.env 中配置")
 
     client = OpenAI(
-        api_key=Config.SILICONFLOW_API_KEY,
+        api_key=api_key,
         base_url=Config.SILICONFLOW_BASE_URL,
     )
 
@@ -177,8 +182,8 @@ def build_embed_fn():
 
 
 def has_siliconflow_key() -> bool:
-    api_key = Config.SILICONFLOW_API_KEY
-    return bool(api_key and api_key != "YOUR_API_KEY")
+    api_key = _get_siliconflow_api_key()
+    return api_key not in {"", "YOUR_API_KEY", "your_siliconflow_api_key_here"}
 
 
 def prepare_strategy_chunks(strategy: str) -> tuple[list[str], list[dict]]:

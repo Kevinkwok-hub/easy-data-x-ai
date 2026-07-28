@@ -4,6 +4,7 @@ Rule extractor from Markdown content.
 Extracts rules from Markdown content based on section headers and list items.
 """
 
+import hashlib
 import re
 from typing import List, Dict, Any
 from models.rule import Rule
@@ -209,13 +210,14 @@ class RuleExtractor:
         # Remove leading/trailing underscores
         key = key.strip('_')
         
-        # Limit length
-        if len(key) > 100:
-            key = key[:100]
-        
+        digest = hashlib.sha256(rule_text.encode("utf-8")).hexdigest()[:12]
+
         # If key is too short or empty, use a default
         if len(key) < 3:
             key = f"{rule_type}_rule"
+
+        # 所有 key 都带内容摘要，避免中文被过滤或标点归一化后发生碰撞。
+        key = f"{key[:87]}_{digest}"
         
         return key
     

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from prometheus_client import CollectorRegistry
 
 from app.agent import KnowledgeAgent
-from app.main import app
+from app.main import AskRequest, app
 from app.observability.prometheus_metrics import AgentMetrics, validate_label_names
 
 
@@ -97,6 +97,35 @@ class PrometheusMetricsTest(unittest.TestCase):
         response = TestClient(app).get("/health")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_ask_endpoint_rejects_oversized_fields(self) -> None:
+        client = TestClient(app)
+        limits = {
+            "query": 4096,
+            "task_id": 128,
+            "expected_answer_contains": 1024,
+        }
+
+        for field, limit in limits.items():
+            with self.subTest(field=field):
+                payload = {"query": "有效问题"}
+                payload[field] = "x" * (limit + 1)
+                response = client.post("/ask", json=payload)
+                self.assertEqual(response.status_code, 422)
+
+    def test_ask_endpoint_rejects_blank_query_and_expected_answer(self) -> None:
+        client = TestClient(app)
+        for payload in (
+            {"query": "   "},
+            {"query": "有效问题", "expected_answer_contains": " \t "},
+        ):
+            with self.subTest(payload=payload):
+                response = client.post("/ask", json=payload)
+                self.assertEqual(response.status_code, 422)
+
+    def test_ask_request_normalizes_surrounding_query_whitespace(self) -> None:
+        request = AskRequest(query="  退款要在多久内提交？  ")
+        self.assertEqual(request.query, "退款要在多久内提交？")
 
 
 if __name__ == "__main__":

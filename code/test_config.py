@@ -35,6 +35,21 @@ class ConfigTests(unittest.TestCase):
                 with patch.object(Config, "SILICONFLOW_API_KEY", value), redirect_stdout(io.StringIO()):
                     self.assertFalse(Config.check_api_key("SILICONFLOW_API_KEY"))
 
+    def test_api_key_validation_ignores_surrounding_whitespace(self):
+        invalid_values = (
+            "   ",
+            "  YOUR_API_KEY  ",
+            "  your_siliconflow_api_key_here  ",
+        )
+
+        for value in invalid_values:
+            with self.subTest(value=value):
+                with patch.object(Config, "SILICONFLOW_API_KEY", value), redirect_stdout(io.StringIO()):
+                    self.assertFalse(Config.check_api_key("SILICONFLOW_API_KEY"))
+
+        with patch.object(Config, "SILICONFLOW_API_KEY", "  sk-example  "):
+            self.assertTrue(Config.check_api_key("SILICONFLOW_API_KEY"))
+
 
 class EnvFileDiscoveryTests(unittest.TestCase):
     def test_prefers_code_env_file(self):
@@ -48,7 +63,10 @@ class EnvFileDiscoveryTests(unittest.TestCase):
             root_env.write_text("SILICONFLOW_API_KEY=root\n", encoding="utf-8")
             code_env.write_text("SILICONFLOW_API_KEY=code\n", encoding="utf-8")
 
-            self.assertEqual(_find_env_file(code_dir), code_env)
+            self.assertEqual(
+                _find_env_file(code_dir).resolve(),
+                code_env.resolve(),
+            )
 
     def test_falls_back_to_repo_root_env_file(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -59,7 +77,10 @@ class EnvFileDiscoveryTests(unittest.TestCase):
             root_env = repo_dir / ".env"
             root_env.write_text("SILICONFLOW_API_KEY=root\n", encoding="utf-8")
 
-            self.assertEqual(_find_env_file(code_dir), root_env)
+            self.assertEqual(
+                _find_env_file(code_dir).resolve(),
+                root_env.resolve(),
+            )
 
     def test_stops_at_repo_root(self):
         with tempfile.TemporaryDirectory() as temp_dir:
