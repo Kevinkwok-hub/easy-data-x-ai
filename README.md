@@ -246,7 +246,7 @@ python d1_1_base.py
     <img src="https://avatars.githubusercontent.com/u/13233790?v=4&s=144" width="72" height="72" alt="liboyang0730" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/liboyang0730" title="打开 liboyang0730 的 GitHub 主页"><kbd><strong>liboyang073…</strong></kbd></a><br />
-  <sub>88 commits</sub>
+  <sub>89 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/knqiufan" title="knqiufan">
@@ -261,6 +261,13 @@ python d1_1_base.py
   </a><br />
   <a href="https://github.com/haoye2" title="打开 haoye2 的 GitHub 主页"><kbd><strong>haoye2</strong></kbd></a><br />
   <sub>6 commits</sub>
+</td>
+<td align="center" valign="top" width="104">
+  <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
+    <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
+  </a><br />
+  <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
+  <sub>3 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/amber-moe" title="amber-moe">
@@ -290,20 +297,13 @@ python d1_1_base.py
   <a href="https://github.com/JasonZhang10086" title="打开 JasonZhang10086 的 GitHub 主页"><kbd><strong>JasonZhang1…</strong></kbd></a><br />
   <sub>1 commit</sub>
 </td>
+</tr>
+<tr>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/jay666mnj" title="jay666mnj">
     <img src="https://avatars.githubusercontent.com/u/192066339?v=4&s=144" width="72" height="72" alt="jay666mnj" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/jay666mnj" title="打开 jay666mnj 的 GitHub 主页"><kbd><strong>jay666mnj</strong></kbd></a><br />
-  <sub>1 commit</sub>
-</td>
-</tr>
-<tr>
-<td align="center" valign="top" width="104">
-  <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
-    <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
-  </a><br />
-  <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
   <sub>1 commit</sub>
 </td>
 <td align="center" valign="top" width="104">
