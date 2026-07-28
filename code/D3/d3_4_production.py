@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import Config
-import pyseekdb
+from seekdb_runtime import create_seekdb_client, require_destructive_seekdb_access
 import json
 from openai import OpenAI
 
@@ -29,7 +29,7 @@ MODEL = "deepseek-ai/DeepSeek-V3"
 
 def create_db_client():
     """创建路径稳定的 seekdb 客户端。"""
-    return pyseekdb.Client(path=str(DATABASE_PATH))
+    return create_seekdb_client(path=DATABASE_PATH)
 
 
 def create_model_client():
@@ -124,41 +124,46 @@ def upsert_document(collection, document):
 
 
 def main():
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
     with create_db_client() as database:
         if not database.has_collection(COLLECTION_NAME):
             print("❌ 未找到知识库，请先运行 d3_1_ingest.py 写入数据")
-            return
+            return 1
         collection = database.get_collection(COLLECTION_NAME)
-        client = create_model_client()
-        print(
-            f">>> 已连接知识库：{COLLECTION_NAME}，"
-            f"共 {collection.count()} 条文档\n"
-        )
+        with create_model_client() as client:
+            print(
+                f">>> 已连接知识库：{COLLECTION_NAME}，"
+                f"共 {collection.count()} 条文档\n"
+            )
 
-        print("=" * 60)
-        print("【要点一】工具描述质量对 Agent 行为的影响")
-        print("=" * 60)
-        test_q = "OB-4.2.1 版本和旧版本兼容吗？"
-        print(
-            ask_with_tool_desc(
-                test_q,
-                "查询数据库",
-                "模糊描述",
-                api_client=client,
+            print("=" * 60)
+            print("【要点一】工具描述质量对 Agent 行为的影响")
+            print("=" * 60)
+            test_q = "OB-4.2.1 版本和旧版本兼容吗？"
+            print(
+                ask_with_tool_desc(
+                    test_q,
+                    "查询数据库",
+                    "模糊描述",
+                    api_client=client,
+                )
             )
-        )
-        clear_desc = (
-            "从产品知识库中检索相关信息。"
-            "当用户询问产品功能、错误码、版本信息、性能优化、营收数据等问题时使用。"
-        )
-        print(
-            ask_with_tool_desc(
-                test_q,
-                clear_desc,
-                "清晰描述",
-                api_client=client,
+            clear_desc = (
+                "从产品知识库中检索相关信息。"
+                "当用户询问产品功能、错误码、版本信息、性能优化、营收数据等问题时使用。"
             )
-        )
+            print(
+                ask_with_tool_desc(
+                    test_q,
+                    clear_desc,
+                    "清晰描述",
+                    api_client=client,
+                )
+            )
 
         print("\n【要点二】top_k 参数的取舍")
         query = "数据库性能优化"
@@ -176,11 +181,13 @@ def main():
             print(f"  top_k={top_k}：返回 {len(docs)} 条")
 
         print("\n【要点三】增量更新知识库")
+        require_destructive_seekdb_access("增量更新 D3 产品知识库")
         upsert_document(collection, new_doc)
         print(f"增量写入或更新 1 条文档后：{collection.count()} 条")
 
     print("\n✅ d3_4 完成！三个生产要点演示结束。")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import pyseekdb
+from seekdb_runtime import create_seekdb_client
 
 # ============================================================
 # d3_3：对比实验——纯向量检索 vs 混合检索（含元数据过滤）
@@ -29,7 +29,7 @@ collection = None
 
 def create_db_client():
     """创建路径稳定的 seekdb 客户端。"""
-    return pyseekdb.Client(path=str(DATABASE_PATH))
+    return create_seekdb_client(path=DATABASE_PATH)
 
 
 # ---------- 1. 辅助函数 ----------
@@ -42,17 +42,30 @@ def get_top1_snippet(results: dict) -> str:
     return docs[0][:65] + "..."
 
 
-def vector_only(query: str, n_results: int = 3) -> dict:
+def _require_collection(target_collection=None):
+    active_collection = target_collection if target_collection is not None else collection
+    if active_collection is None:
+        raise RuntimeError("请先初始化知识库集合")
+    return active_collection
+
+
+def vector_only(query: str, n_results: int = 3, *, target_collection=None) -> dict:
     """纯向量检索：只用语义相似度"""
-    return collection.query(
+    return _require_collection(target_collection).query(
         query_texts=[query],
         n_results=n_results,
     )
 
 
-def hybrid_with_keyword(query: str, keyword: str, n_results: int = 3) -> dict:
+def hybrid_with_keyword(
+    query: str,
+    keyword: str,
+    n_results: int = 3,
+    *,
+    target_collection=None,
+) -> dict:
     """混合检索：向量语义 + 全文关键词，RRF 融合"""
-    return collection.hybrid_search(
+    return _require_collection(target_collection).hybrid_search(
         query={"where_document": {"$contains": keyword}, "n_results": 5},
         knn={"query_texts": [query], "n_results": 5},
         rank={"rrf": {}},
@@ -60,9 +73,15 @@ def hybrid_with_keyword(query: str, keyword: str, n_results: int = 3) -> dict:
     )
 
 
-def vector_with_metadata(query: str, metadata_filter: dict, n_results: int = 3) -> dict:
+def vector_with_metadata(
+    query: str,
+    metadata_filter: dict,
+    n_results: int = 3,
+    *,
+    target_collection=None,
+) -> dict:
     """向量检索 + 元数据过滤：语义搜索 + 结构化字段精确匹配"""
-    return collection.query(
+    return _require_collection(target_collection).query(
         query_texts=[query],
         where=metadata_filter,
         n_results=n_results,
@@ -118,34 +137,38 @@ test_cases = [
 def run_comparison(target_collection):
     """运行检索对比实验。"""
     global collection
+    previous_collection = collection
     collection = target_collection
-    vector_hits = 0
-    enhanced_hits = 0
+    try:
+        vector_hits = 0
+        enhanced_hits = 0
 
-    for case in test_cases:
-        query = case["query"]
-        v_top1 = get_top1_snippet(case["vector_fn"](query))
-        e_top1 = get_top1_snippet(case["enhanced_fn"](query))
-        v_hit = case["correct"] in v_top1
-        e_hit = case["correct"] in e_top1
-        vector_hits += int(v_hit)
-        enhanced_hits += int(e_hit)
+        for case in test_cases:
+            query = case["query"]
+            v_top1 = get_top1_snippet(case["vector_fn"](query))
+            e_top1 = get_top1_snippet(case["enhanced_fn"](query))
+            v_hit = case["correct"] in v_top1
+            e_hit = case["correct"] in e_top1
+            vector_hits += int(v_hit)
+            enhanced_hits += int(e_hit)
 
-        print(f"\n【{case['desc']}】")
-        print(f"  查询：\"{query}\"")
-        print(f"  纯向量检索 Top-1 {'✅' if v_hit else '❌'}：{v_top1}")
-        print(
-            f"  {case['enhanced_label']} Top-1 "
-            f"{'✅' if e_hit else '❌'}：{e_top1}"
-        )
-    return vector_hits, enhanced_hits
+            print(f"\n【{case['desc']}】")
+            print(f"  查询：\"{query}\"")
+            print(f"  纯向量检索 Top-1 {'✅' if v_hit else '❌'}：{v_top1}")
+            print(
+                f"  {case['enhanced_label']} Top-1 "
+                f"{'✅' if e_hit else '❌'}：{e_top1}"
+            )
+        return vector_hits, enhanced_hits
+    finally:
+        collection = previous_collection
 
 
 def main():
     with create_db_client() as database:
         if not database.has_collection(COLLECTION_NAME):
             print("❌ 未找到知识库，请先运行 d3_1_ingest.py 写入数据")
-            return
+            return 1
         target_collection = database.get_collection(COLLECTION_NAME)
         print(
             f">>> 已连接知识库：{COLLECTION_NAME}，"
@@ -161,7 +184,8 @@ def main():
     print("汇总结果：")
     print(f"  纯向量检索命中率：{vector_hits}/{len(test_cases)}")
     print(f"  增强检索命中率：  {enhanced_hits}/{len(test_cases)}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

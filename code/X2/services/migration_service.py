@@ -15,6 +15,7 @@ class MigrationService:
     """Migrate Skills from Markdown files to storage."""
 
     def __init__(self, storage_or_path: SkillStorage | str):
+        self._owns_storage = isinstance(storage_or_path, str)
         if isinstance(storage_or_path, str):
             self.storage = create_storage(storage_or_path)
         else:
@@ -22,7 +23,17 @@ class MigrationService:
 
     @classmethod
     def from_path(cls, db_path: str) -> "MigrationService":
-        return cls(create_storage(db_path))
+        return cls(db_path)
+
+    def close(self) -> None:
+        if self._owns_storage:
+            self.storage.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args) -> None:
+        self.close()
 
     def migrate_skill_file(self, skill_file_path: str, force: bool = False) -> Dict[str, Any]:
         skill_file = Path(skill_file_path)
@@ -53,20 +64,38 @@ class MigrationService:
             status="active",
         )
 
+        rules = RuleExtractor(data["content"]).extract(skill_name)
+        examples = ExampleExtractor(data["content"]).extract(skill_name)
+
         if existing and force:
-            self.storage.delete_rules_by_skill(skill_name)
-            self.storage.delete_examples_by_skill(skill_name)
-            self.storage.update_skill(skill)
+            old_rules = self.storage.get_rules_by_skill(skill_name)
+            old_examples = self.storage.get_examples_by_skill(skill_name)
+            try:
+                self.storage.update_skill(skill)
+                self.storage.delete_rules_by_skill(skill_name)
+                self.storage.delete_examples_by_skill(skill_name)
+                rule_count = self.storage.insert_rules(rules)
+                example_count = self.storage.insert_examples(examples)
+            except Exception:
+                # 回滚边界：清理半成品并补偿恢复旧 Skill、Rule 与 Example。
+                self.storage.delete_rules_by_skill(skill_name)
+                self.storage.delete_examples_by_skill(skill_name)
+                self.storage.update_skill(existing)
+                self.storage.insert_rules(old_rules)
+                self.storage.insert_examples(old_examples)
+                raise
             doc_id = existing.id
             action = "updated"
         else:
-            doc_id = self.storage.create_skill(skill)
+            try:
+                doc_id = self.storage.create_skill(skill)
+                rule_count = self.storage.insert_rules(rules)
+                example_count = self.storage.insert_examples(examples)
+            except Exception:
+                # 新建过程没有数据库事务时，删除所有同名半成品。
+                self.storage.delete_skill_by_name(skill_name)
+                raise
             action = "created"
-
-        rules = RuleExtractor(data["content"]).extract(skill_name)
-        examples = ExampleExtractor(data["content"]).extract(skill_name)
-        rule_count = self.storage.insert_rules(rules)
-        example_count = self.storage.insert_examples(examples)
 
         return {
             "status": "success",

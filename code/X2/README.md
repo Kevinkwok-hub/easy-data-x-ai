@@ -46,7 +46,7 @@ cp .env.example .env
 
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
-pip install pyseekdb PyYAML
+pip install pyseekdb PyYAML python-dotenv
 ```
 
 ### 2. 初始化 → 迁移 → 查询
@@ -71,7 +71,7 @@ python x2_1_compare_context.py
 
 ```bash
 cd code/X2
-pip install pyseekdb PyYAML
+pip install pyseekdb PyYAML python-dotenv
 python database/check_seekdb.py    # 应显示 embedded 模式
 python database/init_seekdb.py
 python tools/migrate.py skills/ --all

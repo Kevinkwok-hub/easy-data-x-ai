@@ -1,3 +1,4 @@
+import argparse
 import re
 import sys
 from pathlib import Path
@@ -7,6 +8,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from openai import OpenAI, OpenAIError
 
 from config import Config
+
+if __package__:
+    from .db_lifecycle import close_database as _close_database
+else:
+    from db_lifecycle import close_database as _close_database
 
 if __package__:
     from .d2_chunking_strategies import (
@@ -46,6 +52,8 @@ else:
 #   - 因此：seekdb 降级不代表 API Key 无效；配置了 Key 仍会运行语义分块。
 # ============================================================
 
+D2_DIR = Path(__file__).resolve().parent
+DEFAULT_DB_PATH = D2_DIR / "seekdb"
 
 SAMPLE_LONG_DOC = """
 # 数据库运维手册
@@ -140,8 +148,9 @@ class InMemoryRetriever:
 class SeekdbRetriever:
     """基于 pyseekdb 的向量检索器。"""
 
-    def __init__(self, collection):
+    def __init__(self, collection, cleanup):
         self.collection = collection
+        self.cleanup = cleanup
 
     def search(self, query: str, k: int = 3) -> list[str]:
         results = self.collection.query(query_texts=[query], n_results=k)
@@ -178,6 +187,7 @@ def build_embed_fn():
         response = client.embeddings.create(model="BAAI/bge-m3", input=texts)
         return [item.embedding for item in response.data]
 
+    embed_batch.close = client.close
     return embed_batch
 
 
@@ -192,7 +202,11 @@ def prepare_strategy_chunks(strategy: str) -> tuple[list[str], list[dict]]:
         return texts, [{"strategy": strategy} for _ in texts]
 
     if strategy == "semantic":
-        texts = semantic_chunk(SAMPLE_LONG_DOC, build_embed_fn())
+        embed_fn = build_embed_fn()
+        try:
+            texts = semantic_chunk(SAMPLE_LONG_DOC, embed_fn)
+        finally:
+            embed_fn.close()
         return texts, [{"strategy": strategy} for _ in texts]
 
     if strategy == "dynamic":
@@ -206,33 +220,59 @@ def prepare_strategy_chunks(strategy: str) -> tuple[list[str], list[dict]]:
     raise ValueError(f"未知策略：{strategy}")
 
 
-def create_seekdb_retriever(strategy: str, use_parent_context: bool) -> SeekdbRetriever | None:
+def create_seekdb_retriever(
+    strategy: str,
+    use_parent_context: bool,
+    client_factory=None,
+    db_path=None,
+) -> SeekdbRetriever:
+    if client_factory is None:
+        from seekdb_runtime import create_seekdb_client
+
+        client_factory = create_seekdb_client
+
+    # 路径边界：默认锚定 D2 目录，避免嵌入式数据库随 cwd 漂移。
+    resolved_path = Path(db_path or DEFAULT_DB_PATH).expanduser().resolve()
+    db = client_factory(path=str(resolved_path))
+    created = False
     try:
-        import pyseekdb
-    except ImportError:
-        return None
+        coll_name = f"d2_chunking_{strategy}"
+        if db.has_collection(coll_name):
+            db.delete_collection(coll_name)
+        collection = db.create_collection(name=coll_name)
+        created = True
+        texts, metadatas = prepare_strategy_chunks(strategy)
+        collection.add(
+            ids=[f"chunk_{i}" for i in range(len(texts))],
+            documents=texts,
+            metadatas=metadatas,
+        )
 
-    try:
-        db = pyseekdb.Client()
-    except ValueError:
-        return None
+        released = False
 
-    coll_name = f"d2_chunking_{strategy}"
-    if db.has_collection(coll_name):
-        db.delete_collection(coll_name)
-    collection = db.create_collection(name=coll_name)
+        def cleanup():
+            nonlocal released
+            if released:
+                return
+            # 资源清理边界：只删除本轮实验拥有的集合。
+            try:
+                db.delete_collection(coll_name)
+            finally:
+                _close_database(db)
+                released = True
 
-    texts, metadatas = prepare_strategy_chunks(strategy)
-    collection.add(
-        ids=[f"chunk_{i}" for i in range(len(texts))],
-        documents=texts,
-        metadatas=metadatas,
-    )
-    retriever = SeekdbRetriever(collection)
-    retriever.use_parent_context = use_parent_context
-    retriever.chunk_count = len(texts)
-    retriever.avg_chunk_size = sum(len(t) for t in texts) / max(len(texts), 1)
-    return retriever
+        retriever = SeekdbRetriever(collection, cleanup)
+        retriever.use_parent_context = use_parent_context
+        retriever.chunk_count = len(texts)
+        retriever.avg_chunk_size = sum(len(t) for t in texts) / max(len(texts), 1)
+        return retriever
+    except Exception:
+        try:
+            if created:
+                db.delete_collection(coll_name)
+        finally:
+            _close_database(db)
+        raise
 
 
 def create_memory_retriever(strategy: str) -> InMemoryRetriever:
@@ -251,32 +291,78 @@ def recall_at_k(retriever, query: str, keyword: str, use_parent_context: bool, k
     return keyword in " ".join(docs)
 
 
-def evaluate_strategy(strategy: str, backend: str, use_parent_context: bool = False) -> dict:
+def evaluate_strategy(
+    strategy: str,
+    backend: str,
+    use_parent_context: bool = False,
+    client_factory=None,
+    db_path=None,
+) -> dict:
+    cleanup = None
     if backend == "seekdb":
-        retriever = create_seekdb_retriever(strategy, use_parent_context)
-        if retriever is None:
-            raise RuntimeError("seekdb 不可用")
+        retriever = create_seekdb_retriever(
+            strategy,
+            use_parent_context,
+            client_factory=client_factory,
+            db_path=db_path,
+        )
+        cleanup = retriever.cleanup
     else:
         retriever = create_memory_retriever(strategy)
 
-    hits = sum(
-        int(recall_at_k(retriever, item["query"], item["keyword"], use_parent_context))
-        for item in EVAL_QUERIES
-    )
-    return {
-        "strategy": strategy,
-        "chunk_count": retriever.chunk_count,
-        "avg_chunk_size": retriever.avg_chunk_size,
-        "recall_at_3": hits / len(EVAL_QUERIES),
-    }
+    try:
+        hits = sum(
+            int(
+                recall_at_k(
+                    retriever,
+                    item["query"],
+                    item["keyword"],
+                    use_parent_context,
+                )
+            )
+            for item in EVAL_QUERIES
+        )
+        return {
+            "strategy": strategy,
+            "chunk_count": retriever.chunk_count,
+            "avg_chunk_size": retriever.avg_chunk_size,
+            "recall_at_3": hits / len(EVAL_QUERIES),
+        }
+    finally:
+        if cleanup is not None:
+            cleanup()
+
+
+def evaluate_with_fallback(
+    strategy: str,
+    use_parent_context: bool = False,
+    client_factory=None,
+    db_path=None,
+) -> tuple[dict, str]:
+    """seekdb 初始化、写入或查询失败时，完整清理后降级到内存检索。"""
+    try:
+        row = evaluate_strategy(
+            strategy,
+            "seekdb",
+            use_parent_context,
+            client_factory=client_factory,
+            db_path=db_path,
+        )
+        return row, "seekdb"
+    except Exception as exc:
+        print(f">>> seekdb 策略 {strategy} 失败，降级为内存检索：{exc}")
+        return (
+            evaluate_strategy(strategy, "memory", use_parent_context),
+            "memory",
+        )
 
 
 def detect_backend() -> str:
     try:
         import pyseekdb
-        pyseekdb.Client()
+        del pyseekdb
         return "seekdb"
-    except (ImportError, ValueError):
+    except ImportError:
         print(">>> seekdb 嵌入式模式不可用，降级为内存词项匹配检索")
         return "memory"
 
@@ -320,22 +406,60 @@ def print_report(rows: list[dict], backend: str):
     print("=" * 72 + "\n")
 
 
-def main():
+def main(client_factory=None, db_path=None):
     backend = detect_backend()
+    if backend == "seekdb":
+        from seekdb_runtime import require_destructive_seekdb_access
+
+        require_destructive_seekdb_access("重建 D2 分块评测集合")
     print_runtime_notes(backend)
     results: list[dict] = []
+    used_backends: list[str] = []
 
-    results.append(evaluate_strategy("fixed", backend))
-    results.append(evaluate_strategy("dynamic", backend))
-    results.append(evaluate_strategy("parent_child", backend, use_parent_context=True))
+    for strategy, use_parent_context in (
+        ("fixed", False),
+        ("dynamic", False),
+        ("parent_child", True),
+    ):
+        if backend == "seekdb":
+            row, used_backend = evaluate_with_fallback(
+                strategy,
+                use_parent_context,
+                client_factory=client_factory,
+                db_path=db_path,
+            )
+        else:
+            row = evaluate_strategy(strategy, "memory", use_parent_context)
+            used_backend = "memory"
+        results.append(row)
+        used_backends.append(used_backend)
 
     try:
-        results.append(evaluate_strategy("semantic", backend))
+        if backend == "seekdb":
+            row, used_backend = evaluate_with_fallback(
+                "semantic",
+                client_factory=client_factory,
+                db_path=db_path,
+            )
+        else:
+            row = evaluate_strategy("semantic", "memory")
+            used_backend = "memory"
+        results.append(row)
+        used_backends.append(used_backend)
     except (RuntimeError, OpenAIError) as exc:
         print(">>> 跳过语义分块：", exc)
 
-    print_report(results, backend)
+    report_backend = "seekdb" if used_backends and all(
+        item == "seekdb" for item in used_backends
+    ) else "memory"
+    print_report(results, report_backend)
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--db-path", type=Path, default=DEFAULT_DB_PATH)
+    return parser.parse_args(argv)
 
 
 if __name__ == "__main__":
-    main()
+    main(db_path=parse_args().db_path)

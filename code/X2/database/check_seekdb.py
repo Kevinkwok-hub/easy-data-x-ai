@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from database.collections import DEFAULT_SEEKDB_PATH
+from database.schema import DEFAULT_SEEKDB_PATH
 from database.seekdb_client import (
     check_connection,
     resolve_mode,

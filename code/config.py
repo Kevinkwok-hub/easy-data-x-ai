@@ -65,6 +65,13 @@ class Config:
         return True
 
     @classmethod
+    def require_api_key(cls, key_name="SILICONFLOW_API_KEY"):
+        """在创建模型或数据库前校验 Key，失败时给出中文提示。"""
+        if not cls.check_api_key(key_name):
+            raise RuntimeError(f"{key_name} 未配置，演示已停止")
+        return getattr(cls, key_name).strip()
+
+    @classmethod
     def get_siliconflow_config(cls):
         """获取 SiliconFlow 配置"""
         return {

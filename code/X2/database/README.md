@@ -1,6 +1,6 @@
 # X2 · seekdb 数据层
 
-X2 使用 [seekdb](https://docs.seekdb.ai/seekdb/doc-overview/) 存储 Skill / Rule / Example，三个集合名见 `collections.py`。
+X2 使用 [seekdb](https://docs.seekdb.ai/seekdb/doc-overview/) 存储 Skill / Rule / Example，三个集合名见 `schema.py`。
 
 ## 部署模式
 
@@ -30,7 +30,7 @@ python database/init_seekdb.py
 
 ## 环境变量
 
-复制 `.env.example` 为 `.env` 后可覆盖默认值：
+复制 `.env.example` 为 X2 目录下的 `.env` 后可设置默认值；进程已有的系统环境变量优先：
 
 | 变量 | 默认值 | 说明 |
 | --- | --- | --- |

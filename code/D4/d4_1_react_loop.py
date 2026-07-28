@@ -21,11 +21,16 @@ from openai import OpenAI
 
 # ---------- 1. 初始化 LLM 客户端 ----------
 
-client = OpenAI(
-    api_key=Config.SILICONFLOW_API_KEY,
-    base_url=Config.SILICONFLOW_BASE_URL,
-)
 MODEL = "deepseek-ai/DeepSeek-V3"
+client = None
+
+
+def create_model_client():
+    """显式创建 OpenAI 兼容模型客户端。"""
+    return OpenAI(
+        api_key=Config.SILICONFLOW_API_KEY,
+        base_url=Config.SILICONFLOW_BASE_URL,
+    )
 
 
 # ---------- 2. 定义工具集 ----------
@@ -131,7 +136,14 @@ def _validate_tool_call_batch(tool_calls, registered_tools, tool_definitions):
             schemas[name] = parameters
 
     validated = []
+    seen_ids = set()
     for index, tool_call in enumerate(tool_calls, start=1):
+        call_id = getattr(tool_call, "id", None)
+        if not isinstance(call_id, str) or not call_id.strip():
+            raise ValueError(f"第 {index} 个工具调用缺少有效 id")
+        if call_id in seen_ids:
+            raise ValueError(f"同一轮工具调用 id 重复：{call_id}")
+        seen_ids.add(call_id)
         function = getattr(tool_call, "function", None)
         func_name = getattr(function, "name", None)
         if not isinstance(func_name, str) or not func_name:
@@ -177,7 +189,7 @@ def _require_final_content(message) -> str:
     return content
 
 
-def agent_loop(question: str, max_steps: int = 5) -> str:
+def agent_loop(question: str, max_steps: int = 5, *, api_client=None) -> str:
     """
     ReAct 推理循环：
     推理 → 行动 → 观察 → 推理 → 行动 → 观察 → ... → 最终回答
@@ -187,6 +199,13 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
     - 每次工具调用的结果会反馈给 Agent，进入下一轮推理
     - max_steps 防止无限循环
     """
+    if api_client is None and client is None:
+        with create_model_client() as owned_client:
+            return agent_loop(
+                question,
+                max_steps=max_steps,
+                api_client=owned_client,
+            )
     messages = [
         {
             "role": "system",
@@ -200,10 +219,13 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
     ]
 
     print(f"  [开始] 用户提问：{question}")
+    active_client = api_client if api_client is not None else client
+    if active_client is None:
+        active_client = create_model_client()
 
     for step in range(1, max_steps + 1):
         # 推理：让 Agent 决定下一步行动
-        response = client.chat.completions.create(
+        response = active_client.chat.completions.create(
             model=MODEL,
             messages=messages,
             tools=tools,
@@ -248,32 +270,50 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
 
 # ---------- 4. 测试用例 ----------
 
-print("=" * 60)
-print("ReAct 推理循环演示")
-print("=" * 60)
+def run_demo(*, api_client=None):
+    """运行三组 ReAct 演示。"""
+    active_client = api_client if api_client is not None else create_model_client()
+    print("=" * 60)
+    print("ReAct 推理循环演示")
+    print("=" * 60)
 
-# 测试 1：简单问题（可能只需要一次工具调用）
-print("\n【测试 1】简单问题：单次工具调用")
-print("-" * 40)
-answer = agent_loop("北京今天天气怎么样？")
-print(f"  回答：{answer}")
+    print("\n【测试 1】简单问题：单次工具调用")
+    print("-" * 40)
+    answer = agent_loop("北京今天天气怎么样？", api_client=active_client)
+    print(f"  回答：{answer}")
 
-# 测试 2：复合问题（需要多次工具调用）
-print("\n【测试 2】复合问题：需要多次工具调用")
-print("-" * 40)
-answer = agent_loop("我想从北京去东京旅游，帮我查一下两个城市的天气，以及人民币兑日元的汇率。")
-print(f"  回答：{answer[:300]}{'...' if len(answer) > 300 else ''}")
+    print("\n【测试 2】复合问题：需要多次工具调用")
+    print("-" * 40)
+    answer = agent_loop(
+        "我想从北京去东京旅游，帮我查一下两个城市的天气，以及人民币兑日元的汇率。",
+        api_client=active_client,
+    )
+    print(f"  回答：{answer[:300]}{'...' if len(answer) > 300 else ''}")
 
-# 测试 3：不需要工具的问题
-print("\n【测试 3】闲聊问题：不需要工具")
-print("-" * 40)
-answer = agent_loop("你好，你能做什么？")
-print(f"  回答：{answer[:200]}{'...' if len(answer) > 200 else ''}")
+    print("\n【测试 3】闲聊问题：不需要工具")
+    print("-" * 40)
+    answer = agent_loop("你好，你能做什么？", api_client=active_client)
+    print(f"  回答：{answer[:200]}{'...' if len(answer) > 200 else ''}")
 
-print()
-print("=" * 60)
-print("关键要点：")
-print("  1. Agent 的核心是一个推理循环，不是单次 API 调用")
-print("  2. Agent 自主决定调用哪个工具、调用几次")
-print("  3. max_steps 是安全阀，防止 Agent 无限循环")
-print("  4. 每次工具调用的结果都会反馈给 Agent，驱动下一轮推理")
+    print()
+    print("=" * 60)
+    print("关键要点：")
+    print("  1. Agent 的核心是一个推理循环，不是单次 API 调用")
+    print("  2. Agent 自主决定调用哪个工具、调用几次")
+    print("  3. max_steps 是安全阀，防止 Agent 无限循环")
+    print("  4. 每次工具调用的结果都会反馈给 Agent，驱动下一轮推理")
+
+
+def main() -> int:
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
+    with create_model_client() as model_client:
+        run_demo(api_client=model_client)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

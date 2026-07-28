@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import Config
-import pyseekdb
+from seekdb_runtime import create_seekdb_client
 from openai import OpenAI
 
 # ============================================================
@@ -60,7 +60,7 @@ tools = [
 
 def create_db_client():
     """创建路径稳定的 seekdb 客户端。"""
-    return pyseekdb.Client(path=str(DATABASE_PATH))
+    return create_seekdb_client(path=DATABASE_PATH)
 
 
 def create_model_client():
@@ -161,8 +161,9 @@ def run_agent_loop(
         {
             "role": "system",
             "content": (
-                "你是一个产品技术文档助手。回答用户问题时，请先查询知识库获取准确信息，"
-                "然后基于查询结果回答。如果知识库中没有相关信息，请诚实告知用户。"
+                "你是一个产品技术文档助手。仅当用户询问产品知识（如产品功能、错误码、"
+                "版本信息、性能优化或产品营收数据）时查询知识库；闲聊和非产品问题不要检索。"
+                "需要检索时先获取准确信息，再基于结果回答。知识库没有相关信息时请诚实告知。"
                 "回答时请引用具体的数据和版本号，不要猜测。"
             )
         },
@@ -191,12 +192,21 @@ def run_agent_loop(
         if tool_rounds >= max_tool_rounds:
             return f"达到最大工具调用轮数（{max_tool_rounds}），任务已停止。"
 
+        call_ids = [getattr(tool_call, "id", None) for tool_call in tool_calls]
+        if any(
+            not isinstance(call_id, str) or not call_id.strip()
+            for call_id in call_ids
+        ):
+            raise ValueError("模型工具调用缺少有效 id")
+        if len(set(call_ids)) != len(call_ids):
+            raise ValueError("同一轮工具调用 id 重复")
+
         messages.append(message)
-        for tool_call in tool_calls:
+        for tool_call, call_id in zip(tool_calls, call_ids):
             result = _tool_result(tool_call, search_fn)
             messages.append({
                 "role": "tool",
-                "tool_call_id": getattr(tool_call, "id", ""),
+                "tool_call_id": call_id,
                 "content": result,
             })
         tool_rounds += 1
@@ -210,7 +220,15 @@ def ask_agent(
     max_tool_rounds: int = 5,
 ) -> str:
     """使用默认依赖执行 Agentic RAG，也允许测试注入离线依赖。"""
-    model_client = api_client or create_model_client()
+    if api_client is None:
+        with create_model_client() as owned_client:
+            return ask_agent(
+                question,
+                api_client=owned_client,
+                search_fn=search_fn,
+                max_tool_rounds=max_tool_rounds,
+            )
+    model_client = api_client
     if search_fn is not None:
         return run_agent_loop(
             question,
@@ -231,7 +249,12 @@ def ask_agent(
         )
 
 
-def main():
+def main() -> int:
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
     test_cases = [
         ("OB-4.2.1 版本和旧版本兼容吗？", "需要检索（版本兼容性）"),
         ("遇到 E-4012 错误怎么解决？", "需要检索（错误码）"),
@@ -242,16 +265,18 @@ def main():
     print("=" * 60)
     print("Agentic RAG 演示")
     print("=" * 60)
-    for index, (question, expected) in enumerate(test_cases, 1):
-        print(f"\n【问题 {index}】{question}")
-        print(f"  预期行为：{expected}")
-        answer = ask_agent(question)
-        print(f"  回答：{answer[:200]}{'...' if len(answer) > 200 else ''}")
-        print()
+    with create_model_client() as model_client:
+        for index, (question, expected) in enumerate(test_cases, 1):
+            print(f"\n【问题 {index}】{question}")
+            print(f"  预期行为：{expected}")
+            answer = ask_agent(question, api_client=model_client)
+            print(f"  回答：{answer[:200]}{'...' if len(answer) > 200 else ''}")
+            print()
 
     print("=" * 60)
     print("✅ Agentic RAG 演示完成")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -8,7 +8,7 @@ import time
 import math
 import uuid
 from openai import OpenAI
-import pyseekdb
+from seekdb_runtime import create_seekdb_client, require_destructive_seekdb_access
 
 # ============================================================
 # d4_3：有记忆的 Agent 演示
@@ -39,18 +39,43 @@ memory_col = None
 def initialize_runtime(*, api_client=None, database=None):
     """显式创建外部依赖；演示库每次运行都重置。"""
     global client, db, memory_col
+    require_destructive_seekdb_access("重建 D4 演示记忆库")
     client = api_client if api_client is not None else OpenAI(
         api_key=Config.SILICONFLOW_API_KEY,
         base_url=Config.SILICONFLOW_BASE_URL,
     )
-    db = database if database is not None else pyseekdb.Client(
-        path=str(MEMORY_DB_PATH)
+    db = database if database is not None else create_seekdb_client(
+        path=MEMORY_DB_PATH
     )
     if db.has_collection(MEMORY_COLLECTION):
         db.delete_collection(MEMORY_COLLECTION)
     memory_col = db.create_collection(name=MEMORY_COLLECTION)
     print(">>> 记忆库已初始化（演示模式：每次运行重置）")
     return memory_col
+
+
+def close_runtime():
+    """显式释放数据库连接和运行时引用。"""
+    global client, db, memory_col
+    active_client = client
+    active_database = db
+    try:
+        if active_client is not None:
+            close_client = getattr(active_client, "close", None)
+            if callable(close_client):
+                close_client()
+        if active_database is not None:
+            close = getattr(active_database, "close", None)
+            if callable(close):
+                close()
+            else:
+                exit_context = getattr(active_database, "__exit__", None)
+                if callable(exit_context):
+                    exit_context(None, None, None)
+    finally:
+        client = None
+        db = None
+        memory_col = None
 
 
 def _require_model_client(api_client=None):
@@ -65,6 +90,18 @@ def _require_memory_collection(collection=None):
     if active_collection is None:
         raise RuntimeError("请先调用 initialize_runtime() 初始化记忆库")
     return active_collection
+
+
+def _response_content(response, *, allow_empty=False):
+    """读取模型响应；事实提炼可对空响应安全降级。"""
+    choices = getattr(response, "choices", None)
+    message = getattr(choices[0], "message", None) if choices else None
+    content = getattr(message, "content", None) if message is not None else None
+    if isinstance(content, str) and content.strip():
+        return content
+    if allow_empty:
+        return None
+    raise RuntimeError("模型返回空响应：缺少 choices、message 或 content")
 
 
 # ---------- 2. 记忆管理函数 ----------
@@ -99,7 +136,10 @@ def extract_facts_from_conversation(
         temperature=0.1,
     )
 
-    content = response.choices[0].message.content.strip()
+    content = _response_content(response, allow_empty=True)
+    if content is None:
+        return []
+    content = content.strip()
 
     # 提取 JSON 数组
     try:
@@ -174,7 +214,14 @@ def search_memory(query: str, top_k: int = 5, *, collection=None) -> list[str]:
     current_time = time.time()
     weighted_memories = []
 
-    for doc, metadata in zip(results["documents"][0], results["metadatas"][0]):
+    ids = results.get("ids", [[]])[0]
+    updated_ids = []
+    updated_metadatas = []
+    for memory_id, doc, metadata in zip(
+        ids,
+        results["documents"][0],
+        results["metadatas"][0],
+    ):
         # 计算时效性权重（艾宾浩斯遗忘曲线简化版）
         # 记忆越新、被访问次数越多，权重越高
         age_days = (current_time - metadata["created_at"]) / 86400
@@ -183,6 +230,17 @@ def search_memory(query: str, top_k: int = 5, *, collection=None) -> list[str]:
         weight = recency_weight + access_bonus
 
         weighted_memories.append((doc, weight, metadata))
+        updated_metadata = dict(metadata)
+        updated_metadata["access_count"] = metadata.get("access_count", 0) + 1
+        updated_ids.append(memory_id)
+        updated_metadatas.append(updated_metadata)
+
+    # 只更新本次检索实际返回的记忆 ID。
+    if updated_ids:
+        active_collection.update(
+            ids=updated_ids,
+            metadatas=updated_metadatas,
+        )
 
     # 按权重排序，返回最相关的记忆
     weighted_memories.sort(key=lambda x: x[1], reverse=True)
@@ -228,7 +286,7 @@ def chat_with_memory(user_input: str, *, api_client=None, collection=None) -> st
         model=MODEL,
         messages=messages
     )
-    reply = response.choices[0].message.content
+    reply = _response_content(response)
 
     # 步骤 4：提炼并存储新记忆
     facts = extract_facts_from_conversation(
@@ -280,14 +338,23 @@ def run_demo():
     print("总结：有记忆 Agent 的优势")
     print("  1. 记住用户身份和技术栈，推荐更有针对性")
     print("  2. 记住用户偏好，回答风格更符合期望")
-    print("  3. 记忆持久化在 seekdb 中，重启后仍然有效")
+    print("  3. 本次演示中记忆可跨轮使用；跨进程持久化请运行 d4_4")
     print("  → 运行 d4_4_memory_agent.py 体验完整的交互式记忆 Agent")
 
 
-def main():
-    initialize_runtime()
-    run_demo()
+def main() -> int:
+    try:
+        Config.require_api_key("SILICONFLOW_API_KEY")
+    except RuntimeError as exc:
+        print(f"❌ {exc}")
+        return 1
+    try:
+        initialize_runtime()
+        run_demo()
+    finally:
+        close_runtime()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -15,12 +15,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from services import MigrationService
 from storage import create_storage
-from database.collections import DEFAULT_SEEKDB_PATH
+from database.schema import DEFAULT_SEEKDB_PATH
 from database.seekdb_client import check_connection, ensure_database
 
 
-def ensure_storage(db_path: str) -> None:
-    ensure_database()
+def ensure_storage(db_path: str):
+    try:
+        ensure_database(path=db_path)
+    except (ConnectionError, ValueError) as exc:
+        print(exc)
+        sys.exit(1)
     ok, message = check_connection(db_path)
     if not ok:
         print(message)
@@ -30,6 +34,7 @@ def ensure_storage(db_path: str) -> None:
         print(f"seekdb not initialized: {db_path}")
         print("Initializing collections...")
         storage.init(force=False)
+    return storage
 
 
 def migrate_file(skill_file: str, db_path: str, force: bool = False):
@@ -42,11 +47,15 @@ def migrate_file(skill_file: str, db_path: str, force: bool = False):
         print(f"✗ Error: File must be named SKILL.md: {skill_file}")
         sys.exit(1)
 
-    ensure_storage(db_path)
-    migration_service = MigrationService(db_path)
-
-    print(f"Migrating: {skill_file}")
-    result = migration_service.migrate_skill_file(skill_file, force=force)
+    storage = ensure_storage(db_path)
+    try:
+        print(f"Migrating: {skill_file}")
+        result = MigrationService(storage).migrate_skill_file(
+            skill_file,
+            force=force,
+        )
+    finally:
+        storage.close()
 
     if result["status"] == "success":
         print(f"✓ Success: {result['skill_name']}")
@@ -66,13 +75,15 @@ def migrate_directory(skills_dir: str, db_path: str, force: bool = False):
         print(f"✗ Error: Directory not found: {skills_dir}")
         sys.exit(1)
 
-    ensure_storage(db_path)
-    migration_service = MigrationService(db_path)
-
-    print(f"Migrating all skills from: {skills_dir}")
-    print("-" * 60)
-
-    results = migration_service.migrate_directory(skills_dir, force=force)
+    storage = ensure_storage(db_path)
+    try:
+        migration_service = MigrationService(storage)
+        print(f"Migrating all skills from: {skills_dir}")
+        print("-" * 60)
+        results = migration_service.migrate_directory(skills_dir, force=force)
+        summary = migration_service.get_migration_summary()
+    finally:
+        storage.close()
 
     success_count = sum(1 for r in results if r["status"] == "success")
     skipped_count = sum(1 for r in results if r["status"] == "skipped")
@@ -98,7 +109,6 @@ def migrate_directory(skills_dir: str, db_path: str, force: bool = False):
                 print(f"  ✗ {result.get('skill_file', 'unknown')}: {result.get('error', 'Unknown error')}")
         sys.exit(1)
 
-    summary = migration_service.get_migration_summary()
     print("\nDatabase Summary:")
     print(f"  Total skills: {summary['skill_count']}")
     print(f"  Total rules: {summary['rule_count']}")

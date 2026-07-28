@@ -20,17 +20,22 @@ class TestGroup:
     start_dir: str
     pattern: str
     python_path: str
+    timeout_seconds: int = 180
 
 
 TEST_GROUPS = (
     TestGroup("配置", "code", "test_config.py", "code"),
+    TestGroup("seekdb 运行模式", "code", "test_seekdb_runtime.py", "code"),
     TestGroup("测试运行器", "code", "test_run_tests.py", "code"),
     TestGroup("D1 导入路径", "code", "test_example_import_paths.py", "code"),
     TestGroup("D1 工具循环", "code/D1", "test_tool_call_loop.py", "code/D1"),
+    TestGroup("D1 可运行性", "code/D1", "test_d1_runnability.py", "code"),
     TestGroup("D2", "code/D2", "test*.py", "code"),
     TestGroup("D3", "code/D3", "test*.py", "code"),
     TestGroup("D4", "code/D4", "test*.py", "code"),
+    TestGroup("X1 示例入口", "code/X1", "test*.py", "code/X1"),
     TestGroup("X2", "code/X2/tests", "test*.py", "code/X2"),
+    TestGroup("X5 MCP", "code/X5", "test*.py", "code/X5"),
     TestGroup("P5", "code/P5/tests", "test*.py", "code/P5"),
 )
 
@@ -41,6 +46,20 @@ def extract_test_count(output: str) -> int:
     if len(matches) != 1 or int(matches[0]) == 0:
         raise RuntimeError("测试组没有实际执行任何测试")
     return int(matches[0])
+
+
+def reject_skipped_tests(output: str) -> None:
+    """发布门槛不允许用 skip 代替真实集成验证。"""
+    skipped = sum(int(value) for value in re.findall(r"skipped=(\d+)", output))
+    if skipped:
+        raise RuntimeError(f"测试组跳过了 {skipped} 个测试")
+
+
+def _text_output(value: str | bytes | None) -> str:
+    """兼容不同 Python 版本在超时异常中返回 bytes。"""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value or ""
 
 
 def run_group(group: TestGroup) -> int:
@@ -63,20 +82,32 @@ def run_group(group: TestGroup) -> int:
         group.pattern,
         "-v",
     ]
-    result = subprocess.run(
-        command,
-        cwd=REPO_ROOT,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=group.timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        output = _text_output(exc.stdout) + _text_output(exc.stderr)
+        print(f"\n===== {group.name} =====")
+        if output:
+            print(output.rstrip())
+        raise RuntimeError(
+            f"{group.name} 测试超时（{group.timeout_seconds} 秒）"
+        ) from exc
     output = result.stdout + result.stderr
     print(f"\n===== {group.name} =====")
     print(output.rstrip())
     if result.returncode != 0:
         raise RuntimeError(f"{group.name} 测试失败")
-    return extract_test_count(output)
+    count = extract_test_count(output)
+    reject_skipped_tests(output)
+    return count
 
 
 def main() -> int:

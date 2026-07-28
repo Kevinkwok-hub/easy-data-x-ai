@@ -50,6 +50,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r code/requirements-test.txt
 
+      - name: Verify dependency consistency
+        run: python -m pip check
+
       - name: Run Python tests
         run: python code/run_tests.py
 
