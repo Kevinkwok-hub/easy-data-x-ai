@@ -56,24 +56,8 @@ class DatabasePackageTests(unittest.TestCase):
 
 
 class DatabaseIntegrationTests(unittest.TestCase):
-    def test_fresh_database_creates_database_before_client_binding(self) -> None:
+    def test_fresh_database_creates_initializes_migrates_and_queries(self) -> None:
         from database.seekdb_client import create_client, ensure_database
-
-        if platform.system() == "Darwin" and not os.getenv("SEEKDB_TEST_HOST"):
-            self.skipTest(
-                "macOS 不支持 Embedded seekdb；请配置 SEEKDB_TEST_HOST 连接测试服务"
-            )
-        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(
-            os.environ,
-            real_database_env(),
-            clear=False,
-        ):
-            ensure_database(path=temp_dir)
-            with create_client(temp_dir) as client:
-                clear_x2_collections(client)
-                self.assertEqual(client.list_collections(), [])
-
-    def test_fresh_database_initializes_migrates_and_queries(self) -> None:
         from services.migration_service import MigrationService
         from services.query_service import QueryService
         from storage import create_storage
@@ -102,8 +86,16 @@ print("ok")
         ):
             skill_file = Path(temp_dir) / "SKILL.md"
             skill_file.write_text(skill_markdown, encoding="utf-8")
-            storage = create_storage(str(Path(temp_dir) / "seekdb"))
+            database_path = str(Path(temp_dir) / "seekdb")
 
+            # Embedded 引擎在单个 Python 进程中只能绑定一个数据目录。
+            # 建库、客户端绑定和端到端读写必须复用同一路径与生命周期。
+            ensure_database(path=database_path)
+            with create_client(database_path) as client:
+                clear_x2_collections(client)
+                self.assertEqual(client.list_collections(), [])
+
+            storage = create_storage(database_path)
             try:
                 storage.init(force=True)
                 result = MigrationService(storage).migrate_skill_file(str(skill_file))
