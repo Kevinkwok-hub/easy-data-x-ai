@@ -45,8 +45,14 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Install D1 test dependencies
+        run: python -m pip install "langchain-core>=1.2.27,<2"
+
       - name: Test D1 import paths
         run: python -m unittest discover -s code -p 'test_example_import_paths.py' -v
+
+      - name: Test D1 tool call loop
+        run: PYTHONPATH=code/D1 python -m unittest discover -s code/D1 -p 'test_tool_call_loop.py' -v
 
       - name: Compile Python examples
         run: python -m compileall code

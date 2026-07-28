@@ -3,7 +3,7 @@
 # LangChain 核心
 langchain>=1.2.15
 langchain-openai>=1.1.12
-langchain-core>=0.3.29
+langchain-core>=1.2.27,<2
 
 # 环境变量管理
 python-dotenv>=1.2.2
