@@ -3,6 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from config import Config
+from tool_call_loop import run_tool_call_loop
 import pyseekdb
 from langchain.chat_models import init_chat_model
 from langchain_core.tools import tool
@@ -78,36 +79,25 @@ messages = [
     ("user", user_question),
 ]
 
-# 流式调用，需要聚合 chunks 才能拿到完整的 tool_calls
-chunks = list(llm_with_tools.stream(messages))
-response = chunks[0]
-for chunk in chunks[1:]:
-    response += chunk
-
-
-# ---------- 4. 处理工具调用 ----------
-if response.tool_calls:
-    tool_call = response.tool_calls[0]
+# ---------- 4. 循环处理工具调用 ----------
+def print_tool_result(tool_call, result):
     print(f">>> 模型决定调用工具：{tool_call['name']}")
     print(f">>> 工具参数：{tool_call['args']}\n")
-
-    # 执行工具（调用 seekdb 进行真实的向量检索）
-    result = search_seekdb.invoke(tool_call["args"])
-
     print(f">>> seekdb 检索结果：\n{result}\n")
 
-    # 把检索结果作为补充信息传回模型
-    # 注意：硅基流动的 API 对 tool_calls 消息格式兼容性有限
-    # 这里用更通用的方式——把检索结果放进 user 消息中
-    messages.append(("user", f"以下是从知识库中检索到的相关内容，请基于这些内容回答用户的问题：\n\n{result}"))
 
-    # 第二次调用：流式输出最终回答
-    print(">>> 模型最终回答：")
-    for chunk in llm.stream(messages):
-        print(chunk.content, end="", flush=True)
-    print()
-else:
-    print(f">>> 模型直接回答（未调用工具）：\n{response.content}")
+# 硅基流动当前对 assistant.tool_calls + ToolMessage 的兼容性有限。
+# 因此本示例显式选择 legacy user-message fallback；helper 默认仍是标准协议。
+response = run_tool_call_loop(
+    llm_with_tools,
+    messages,
+    {search_seekdb.name: search_seekdb},
+    max_rounds=5,
+    on_tool_result=print_tool_result,
+    legacy_user_message_fallback=True,
+)
+
+print(f">>> 模型最终回答：\n{response.content}")
 
 
 # ---------- 5. 清理 ----------

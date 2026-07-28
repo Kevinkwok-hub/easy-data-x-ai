@@ -26,6 +26,7 @@ TEST_GROUPS = (
     TestGroup("配置", "code", "test_config.py", "code"),
     TestGroup("测试运行器", "code", "test_run_tests.py", "code"),
     TestGroup("D1 导入路径", "code", "test_example_import_paths.py", "code"),
+    TestGroup("D1 工具循环", "code/D1", "test_tool_call_loop.py", "code/D1"),
     TestGroup("D2", "code/D2", "test*.py", "code"),
     TestGroup("D3", "code/D3", "test*.py", "code"),
     TestGroup("D4", "code/D4", "test*.py", "code"),
