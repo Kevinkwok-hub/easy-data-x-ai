@@ -4,6 +4,7 @@ import os
 import platform
 import runpy
 import tempfile
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -13,6 +14,21 @@ from pyseekdb.client.embedding_function import register_embedding_function
 
 
 D3_DIR = Path(__file__).resolve().parent
+
+
+def wait_for_documents(search, timeout_seconds=10):
+    """Embedded 的向量/全文索引可能异步就绪，轮询到可查询后再断言。"""
+    deadline = time.monotonic() + timeout_seconds
+    last_result = {}
+    while time.monotonic() < deadline:
+        last_result = search()
+        documents = last_result.get("documents", [[]])
+        if documents and documents[0]:
+            return last_result
+        time.sleep(0.1)
+    raise AssertionError(
+        f"seekdb 索引在 {timeout_seconds} 秒内未返回文档：{last_result}"
+    )
 
 
 @register_embedding_function
@@ -105,16 +121,20 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
                     collection_created = True
                     self.assertEqual(12, collection.count())
 
-                    vector_results = compare["vector_only"](
-                        "E-4012",
-                        target_collection=collection,
+                    vector_results = wait_for_documents(
+                        lambda: compare["vector_only"](
+                            "E-4012",
+                            target_collection=collection,
+                        )
                     )
                     self.assertIn("E-4012", vector_results["documents"][0][0])
 
-                    hybrid_results = compare["hybrid_with_keyword"](
-                        "E-4012 错误怎么解决",
-                        "E-4012",
-                        target_collection=collection,
+                    hybrid_results = wait_for_documents(
+                        lambda: compare["hybrid_with_keyword"](
+                            "E-4012 错误怎么解决",
+                            "E-4012",
+                            target_collection=collection,
+                        )
                     )
                     self.assertIn("E-4012", hybrid_results["documents"][0][0])
 
