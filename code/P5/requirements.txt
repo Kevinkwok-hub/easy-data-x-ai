@@ -1,6 +1,8 @@
 PyYAML>=5.4.1
 fastapi>=0.110
 httpx>=0.27
+# Starlette 1.2+ 的 TestClient 优先使用 httpx2；保留 httpx 兼容旧版本。
+httpx2>=2.0,<3
 langsmith>=0.10
 prometheus-client>=0.20
 uvicorn>=0.27
