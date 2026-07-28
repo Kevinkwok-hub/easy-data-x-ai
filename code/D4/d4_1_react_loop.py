@@ -109,6 +109,74 @@ tool_functions = {
 
 # ---------- 3. ReAct 推理循环 ----------
 
+def _require_response_message(response):
+    """把供应商空响应转换成稳定、可诊断的异常。"""
+    choices = getattr(response, "choices", None)
+    if not choices:
+        raise RuntimeError("模型返回空响应：缺少 choices")
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        raise RuntimeError("模型返回空响应：缺少 message")
+    return message
+
+
+def _validate_tool_call_batch(tool_calls, registered_tools, tool_definitions):
+    """整批校验工具名、JSON 参数和声明的必填字符串字段。"""
+    schemas = {}
+    for definition in tool_definitions:
+        function = definition.get("function", {}) if isinstance(definition, dict) else {}
+        name = function.get("name")
+        parameters = function.get("parameters")
+        if isinstance(name, str) and isinstance(parameters, dict):
+            schemas[name] = parameters
+
+    validated = []
+    for index, tool_call in enumerate(tool_calls, start=1):
+        function = getattr(tool_call, "function", None)
+        func_name = getattr(function, "name", None)
+        if not isinstance(func_name, str) or not func_name:
+            raise ValueError(f"第 {index} 个工具调用缺少有效名称")
+        if func_name not in registered_tools:
+            raise ValueError(f"模型请求了未注册的工具：{func_name}")
+
+        raw_arguments = getattr(function, "arguments", None)
+        try:
+            arguments = json.loads(raw_arguments)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise ValueError(f"工具 {func_name} 的参数不是合法 JSON") from exc
+        if not isinstance(arguments, dict):
+            raise ValueError(f"工具 {func_name} 的 JSON 参数必须是对象")
+
+        schema = schemas.get(func_name)
+        if not isinstance(schema, dict):
+            raise ValueError(f"工具 {func_name} 缺少可校验的参数 schema")
+        required = schema.get("required", [])
+        properties = schema.get("properties", {})
+        if not isinstance(required, list) or not isinstance(properties, dict):
+            raise ValueError(f"工具 {func_name} 的参数 schema 无效")
+        for field_name in required:
+            if field_name not in arguments:
+                raise ValueError(f"工具 {func_name} 缺少必填参数 {field_name}")
+            field_schema = properties.get(field_name, {})
+            if (
+                isinstance(field_schema, dict)
+                and field_schema.get("type") == "string"
+                and not isinstance(arguments[field_name], str)
+            ):
+                raise ValueError(f"工具 {func_name} 的参数 {field_name} 必须是字符串")
+
+        validated.append((tool_call, func_name, arguments))
+    return validated
+
+
+def _require_final_content(message) -> str:
+    """最终回答必须是非空文本。"""
+    content = getattr(message, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise RuntimeError("模型返回空响应：缺少最终回答内容")
+    return content
+
+
 def agent_loop(question: str, max_steps: int = 5) -> str:
     """
     ReAct 推理循环：
@@ -141,17 +209,21 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
             tools=tools,
         )
 
-        message = response.choices[0].message
+        message = _require_response_message(response)
 
         # 检查 Agent 是否决定调用工具
-        if message.tool_calls:
+        tool_calls = getattr(message, "tool_calls", None)
+        if tool_calls:
+            validated_calls = _validate_tool_call_batch(
+                tool_calls,
+                tool_functions,
+                tools,
+            )
+
             # 行动：执行工具调用
             messages.append(message)
 
-            for tool_call in message.tool_calls:
-                func_name = tool_call.function.name
-                arguments = json.loads(tool_call.function.arguments)
-
+            for tool_call, func_name, arguments in validated_calls:
                 print(f"  [步骤 {step}] 调用工具：{func_name}({arguments})")
 
                 # 执行工具
@@ -167,7 +239,7 @@ def agent_loop(question: str, max_steps: int = 5) -> str:
         else:
             # Agent 决定不再调用工具，直接给出最终回答
             print(f"  [步骤 {step}] Agent 给出最终回答（共 {step} 步）")
-            return message.content
+            return _require_final_content(message)
 
     # 达到最大步数限制
     print(f"  [警告] 达到最大步数限制（{max_steps}步），强制结束")

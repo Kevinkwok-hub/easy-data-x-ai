@@ -31,12 +31,12 @@ def main():
     )
     args = parser.parse_args()
 
+    ensure_database()
+
     ok, message = check_connection(args.db_path)
     if not ok:
         print(message)
         sys.exit(1)
-
-    ensure_database()
 
     storage = create_storage(args.db_path)
     storage.init(force=args.force)

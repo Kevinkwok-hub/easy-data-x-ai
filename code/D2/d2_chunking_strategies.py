@@ -14,6 +14,7 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass, field
+from numbers import Real
 
 
 @dataclass
@@ -46,6 +47,7 @@ def fixed_overlap_chunk(
     overlap: int = 30,
 ) -> list[str]:
     """固定大小 + 固定 overlap 的基线分块策略。"""
+    _validate_fixed_chunk_parameters(chunk_size, overlap)
     chunks: list[str] = []
     start = 0
     while start < len(text):
@@ -55,6 +57,14 @@ def fixed_overlap_chunk(
             chunks.append(piece)
         start += chunk_size - overlap
     return chunks
+
+
+def _validate_fixed_chunk_parameters(chunk_size: int, overlap: int) -> None:
+    """校验固定分块参数，确保循环步长始终为正数。"""
+    if chunk_size <= 0:
+        raise ValueError("chunk_size 必须大于 0")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap 必须大于等于 0 且小于 chunk_size")
 
 
 def _cosine_similarity(vec_a: list[float], vec_b: list[float]) -> float:
@@ -122,27 +132,65 @@ def semantic_chunk(
     参考 NAACL 2025 Findings《Is Semantic Chunking Worth the Computational Cost?》
     与 LangChain SemanticChunker 的 percentile 阈值实现。
     """
+    if (
+        isinstance(percentile, bool)
+        or not isinstance(percentile, Real)
+        or not math.isfinite(percentile)
+        or not 0 <= percentile <= 100
+    ):
+        raise ValueError("percentile 必须是 0 到 100 之间的有限数值")
+    if min_chunk_chars <= 0:
+        raise ValueError("min_chunk_chars 必须大于 0")
+    if max_chunk_chars <= 0:
+        raise ValueError("max_chunk_chars 必须大于 0")
+    if min_chunk_chars > max_chunk_chars:
+        raise ValueError("min_chunk_chars 不能大于 max_chunk_chars")
+
     sentences = split_sentences(text)
     if not sentences:
         return []
+
     if len(sentences) == 1:
-        return sentences
+        raw_chunks = sentences
+    else:
+        embeddings = list(embed_fn(sentences))
+        _validate_embeddings(embeddings, len(sentences))
+        similarities = [
+            _cosine_similarity(embeddings[i], embeddings[i + 1])
+            for i in range(len(embeddings) - 1)
+        ]
+        breakpoints = _find_semantic_breakpoints(similarities, percentile)
 
-    embeddings = embed_fn(sentences)
-    similarities = [
-        _cosine_similarity(embeddings[i], embeddings[i + 1])
-        for i in range(len(embeddings) - 1)
-    ]
-    breakpoints = _find_semantic_breakpoints(similarities, percentile)
-
-    raw_chunks: list[str] = []
-    start = 0
-    for idx in range(1, len(sentences) + 1):
-        if idx in breakpoints or idx == len(sentences):
-            raw_chunks.append("".join(sentences[start:idx]))
-            start = idx
+        raw_chunks = []
+        start = 0
+        for idx in range(1, len(sentences) + 1):
+            if idx in breakpoints or idx == len(sentences):
+                raw_chunks.append("".join(sentences[start:idx]))
+                start = idx
 
     return _merge_small_chunks(raw_chunks, min_chunk_chars, max_chunk_chars)
+
+
+def _validate_embeddings(embeddings: list[list[float]], expected_count: int) -> None:
+    """校验 Embedding 数量、维度及数值有效性。"""
+    if len(embeddings) != expected_count:
+        raise ValueError(
+            f"Embedding 数量应为 {expected_count}，实际为 {len(embeddings)}"
+        )
+
+    dimension = len(embeddings[0]) if embeddings else 0
+    if dimension == 0:
+        raise ValueError("Embedding 向量不能为空")
+
+    for vector in embeddings:
+        if len(vector) != dimension:
+            raise ValueError("Embedding 向量维度必须一致")
+        try:
+            finite = all(math.isfinite(value) for value in vector)
+        except TypeError as exc:
+            raise ValueError("Embedding 向量必须只包含数值") from exc
+        if not finite:
+            raise ValueError("Embedding 向量必须只包含有限数值")
 
 
 def _merge_small_chunks(
@@ -150,22 +198,27 @@ def _merge_small_chunks(
     min_chars: int,
     max_chars: int,
 ) -> list[str]:
-    """合并过小的语义块，避免碎片化。"""
+    """合并过小的语义块，并保证每个块不超过最大长度。"""
+    bounded_chunks = [
+        chunk[start:start + max_chars]
+        for chunk in chunks
+        for start in range(0, len(chunk), max_chars)
+    ]
     merged: list[str] = []
     buffer = ""
-    for chunk in chunks:
+    for chunk in bounded_chunks:
         candidate = buffer + chunk
-        if len(candidate) < min_chars:
+        if len(candidate) <= max_chars and len(candidate) < min_chars:
             buffer = candidate
             continue
-        if len(candidate) > max_chars and buffer:
+        if len(candidate) > max_chars:
             merged.append(buffer)
             buffer = chunk
             continue
         merged.append(candidate)
         buffer = ""
     if buffer:
-        if merged:
+        if merged and len(merged[-1]) + len(buffer) <= max_chars:
             merged[-1] += buffer
         else:
             merged.append(buffer)
@@ -213,6 +266,15 @@ def dynamic_overlap_chunk(
     思路参考 Weaviate《Chunking Strategies for RAG》中的 Adaptive Chunking：
     根据内容结构动态调整参数，而非全文统一 overlap。
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size 必须大于 0")
+    if base_overlap < 0 or max_overlap < 0:
+        raise ValueError("overlap 必须大于等于 0")
+    if base_overlap > max_overlap:
+        raise ValueError("base_overlap 不能大于 max_overlap")
+    if max_overlap >= chunk_size:
+        raise ValueError("max_overlap 必须小于 chunk_size")
+
     if not text.strip():
         return []
 
@@ -245,6 +307,9 @@ def parent_child_chunk(
     检索时只索引子块；命中后通过 parent_id 取回父块文本给 LLM。
     又称 small-to-big / parent-document retrieval。
     """
+    _validate_fixed_chunk_parameters(parent_size, 0)
+    _validate_fixed_chunk_parameters(child_size, child_overlap)
+
     parent_texts = fixed_overlap_chunk(text, parent_size, overlap=0)
     parents: list[ParentChunk] = []
 

@@ -26,6 +26,11 @@ def chunk_document(text: str, chunk_size: int = 200, overlap: int = 30) -> list[
     将长文档切分为带重叠的小片段。
     overlap（重叠）确保片段边界处的语义不丢失。
     """
+    if chunk_size <= 0:
+        raise ValueError("chunk_size 必须大于 0")
+    if overlap < 0 or overlap >= chunk_size:
+        raise ValueError("overlap 必须大于等于 0 且小于 chunk_size")
+
     chunks = []
     start = 0
     while start < len(text):

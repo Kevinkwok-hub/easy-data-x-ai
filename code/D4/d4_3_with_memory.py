@@ -6,6 +6,7 @@ from config import Config
 import json
 import time
 import math
+import uuid
 from openai import OpenAI
 import pyseekdb
 
@@ -25,27 +26,55 @@ import pyseekdb
 
 # ---------- 1. 初始化 ----------
 
-client = OpenAI(
-    api_key=Config.SILICONFLOW_API_KEY,
-    base_url=Config.SILICONFLOW_BASE_URL,
-)
 MODEL = "deepseek-ai/DeepSeek-V3"
-
-# 初始化 seekdb，用于存储记忆
-db = pyseekdb.Client(path="./memory.db")
 MEMORY_COLLECTION = "user_memory_demo"
+D4_DIR = Path(__file__).resolve().parent
+MEMORY_DB_PATH = D4_DIR / "memory.db"
 
-# 如果已存在则先清空，确保演示效果干净
-if db.has_collection(MEMORY_COLLECTION):
-    db.delete_collection(MEMORY_COLLECTION)
-memory_col = db.create_collection(name=MEMORY_COLLECTION)
+client = None
+db = None
+memory_col = None
 
-print(">>> 记忆库已初始化（演示模式：每次运行重置）")
+
+def initialize_runtime(*, api_client=None, database=None):
+    """显式创建外部依赖；演示库每次运行都重置。"""
+    global client, db, memory_col
+    client = api_client if api_client is not None else OpenAI(
+        api_key=Config.SILICONFLOW_API_KEY,
+        base_url=Config.SILICONFLOW_BASE_URL,
+    )
+    db = database if database is not None else pyseekdb.Client(
+        path=str(MEMORY_DB_PATH)
+    )
+    if db.has_collection(MEMORY_COLLECTION):
+        db.delete_collection(MEMORY_COLLECTION)
+    memory_col = db.create_collection(name=MEMORY_COLLECTION)
+    print(">>> 记忆库已初始化（演示模式：每次运行重置）")
+    return memory_col
+
+
+def _require_model_client(api_client=None):
+    active_client = api_client if api_client is not None else client
+    if active_client is None:
+        raise RuntimeError("请先调用 initialize_runtime() 初始化模型客户端")
+    return active_client
+
+
+def _require_memory_collection(collection=None):
+    active_collection = collection if collection is not None else memory_col
+    if active_collection is None:
+        raise RuntimeError("请先调用 initialize_runtime() 初始化记忆库")
+    return active_collection
 
 
 # ---------- 2. 记忆管理函数 ----------
 
-def extract_facts_from_conversation(user_input: str, assistant_reply: str) -> list[str]:
+def extract_facts_from_conversation(
+    user_input: str,
+    assistant_reply: str,
+    *,
+    api_client=None,
+) -> list[str]:
     """
     用 LLM 从一轮对话中提炼关键事实。
     只提取关于用户的客观事实和偏好，不提取通用知识。
@@ -64,7 +93,7 @@ def extract_facts_from_conversation(user_input: str, assistant_reply: str) -> li
 
 如果没有值得记录的信息，返回：[]"""
 
-    response = client.chat.completions.create(
+    response = _require_model_client(api_client).chat.completions.create(
         model=MODEL,
         messages=[{"role": "user", "content": prompt}],
         temperature=0.1,
@@ -98,7 +127,7 @@ def extract_facts_from_conversation(user_input: str, assistant_reply: str) -> li
         return []
 
 
-def add_memory(facts: list[str]):
+def add_memory(facts: list[str], *, collection=None):
     """将提炼出的事实存入 seekdb 记忆库"""
     if not facts:
         return
@@ -108,8 +137,8 @@ def add_memory(facts: list[str]):
     documents = []
     metadatas = []
 
-    for i, fact in enumerate(facts):
-        memory_id = f"mem_{int(current_time)}_{i}"
+    for fact in facts:
+        memory_id = str(uuid.uuid4())
         ids.append(memory_id)
         documents.append(fact)
         metadatas.append({
@@ -117,19 +146,27 @@ def add_memory(facts: list[str]):
             "access_count": 0,  # 被检索到的次数（用于遗忘曲线）
         })
 
-    memory_col.add(ids=ids, documents=documents, metadatas=metadatas)
+    _require_memory_collection(collection).add(
+        ids=ids,
+        documents=documents,
+        metadatas=metadatas,
+    )
     print(f"  [记忆] 存入 {len(facts)} 条新记忆：{facts}")
 
 
-def search_memory(query: str, top_k: int = 5) -> list[str]:
+def search_memory(query: str, top_k: int = 5, *, collection=None) -> list[str]:
     """
     从记忆库中检索与当前问题相关的记忆。
     使用时效性权重：越新的记忆权重越高（模拟遗忘曲线）。
     """
-    if memory_col.count() == 0:
+    active_collection = _require_memory_collection(collection)
+    if active_collection.count() == 0:
         return []
 
-    results = memory_col.query(query_texts=[query], n_results=min(top_k, memory_col.count()))
+    results = active_collection.query(
+        query_texts=[query],
+        n_results=min(top_k, active_collection.count()),
+    )
 
     if not results or not results["documents"] or not results["documents"][0]:
         return []
@@ -154,7 +191,7 @@ def search_memory(query: str, top_k: int = 5) -> list[str]:
 
 # ---------- 3. 有记忆的 Agent ----------
 
-def chat_with_memory(user_input: str) -> str:
+def chat_with_memory(user_input: str, *, api_client=None, collection=None) -> str:
     """
     有记忆的 Agent：
     1. 推理前：从记忆库检索相关的用户信息，注入 System Prompt
@@ -162,7 +199,11 @@ def chat_with_memory(user_input: str) -> str:
     3. 推理后：从对话中提炼新事实，存入记忆库
     """
     # 步骤 1：检索相关记忆
-    relevant_memories = search_memory(query=user_input, top_k=5)
+    relevant_memories = search_memory(
+        query=user_input,
+        top_k=5,
+        collection=collection,
+    )
     memory_context = "\n".join([f"- {m}" for m in relevant_memories])
 
     # 步骤 2：构建包含记忆的 System Prompt
@@ -182,81 +223,71 @@ def chat_with_memory(user_input: str) -> str:
     ]
 
     # 步骤 3：调用模型
-    response = client.chat.completions.create(
+    active_client = _require_model_client(api_client)
+    response = active_client.chat.completions.create(
         model=MODEL,
         messages=messages
     )
     reply = response.choices[0].message.content
 
     # 步骤 4：提炼并存储新记忆
-    facts = extract_facts_from_conversation(user_input, reply)
-    add_memory(facts)
+    facts = extract_facts_from_conversation(
+        user_input,
+        reply,
+        api_client=active_client,
+    )
+    add_memory(facts, collection=collection)
 
     return reply
 
 
 # ---------- 4. 演示对话序列（与 d4_2 相同的问题，对比效果）----------
 
-print()
-print("=" * 60)
-print("有记忆 Agent 演示")
-print("=" * 60)
-print("观察：Agent 会记住用户信息，并在后续对话中体现")
-print()
+def run_demo():
+    """运行四轮有记忆对话演示。"""
+    print()
+    print("=" * 60)
+    print("有记忆 Agent 演示")
+    print("=" * 60)
+    print("观察：Agent 会记住用户信息，并在后续对话中体现")
+    print()
 
-# 第 1 轮：告诉 Agent 用户身份和偏好
-print("【第 1 轮】告知身份和偏好")
-print("-" * 40)
-q1 = "我是一个 Python 开发者，主要做后端开发，喜欢简洁的回答。"
-print(f"用户：{q1}")
-a1 = chat_with_memory(q1)
-print(f"Agent：{a1[:200]}{'...' if len(a1) > 200 else ''}")
-print(f"  [记忆库] 当前记忆数量：{memory_col.count()}")
+    questions = (
+        ("【第 1 轮】告知身份和偏好", "我是一个 Python 开发者，主要做后端开发，喜欢简洁的回答。"),
+        ("【第 2 轮】推荐 Web 框架", "帮我推荐一个 Web 框架"),
+        ("【第 3 轮】询问缓存方案", "怎么给我的项目加缓存？"),
+        ("【第 4 轮】模拟重启后继续昨天的话题", "继续昨天的话题，帮我选一个数据库方案。"),
+    )
+    for title, question in questions:
+        print(f"\n{title}")
+        print("-" * 40)
+        print(f"用户：{question}")
+        answer = chat_with_memory(question)
+        print(f"Agent：{answer[:300]}{'...' if len(answer) > 300 else ''}")
 
-# 第 2 轮：问 Web 框架推荐（Agent 应该记得你是 Python 开发者）
-print("\n【第 2 轮】推荐 Web 框架")
-print("-" * 40)
-q2 = "帮我推荐一个 Web 框架"
-print(f"用户：{q2}")
-a2 = chat_with_memory(q2)
-print(f"Agent：{a2[:300]}{'...' if len(a2) > 300 else ''}")
-print()
-print("  ✅ 注意：Agent 记得你是 Python 开发者，应该推荐 Python 框架")
+    active_collection = _require_memory_collection()
+    print()
+    print("=" * 60)
+    print("当前记忆库内容（共 {} 条）：".format(active_collection.count()))
+    print("-" * 40)
+    all_memories = active_collection.get()
+    if all_memories and all_memories["documents"]:
+        for index, document in enumerate(all_memories["documents"], 1):
+            print(f"  {index}. {document}")
 
-# 第 3 轮：问缓存方案（Agent 应该记得你喜欢简洁回答）
-print("\n【第 3 轮】询问缓存方案")
-print("-" * 40)
-q3 = "怎么给我的项目加缓存？"
-print(f"用户：{q3}")
-a3 = chat_with_memory(q3)
-print(f"Agent：{a3[:300]}{'...' if len(a3) > 300 else ''}")
-print()
-print("  ✅ 注意：Agent 记得你喜欢简洁回答，应该给出简洁的建议")
+    print()
+    print("=" * 60)
+    print("总结：有记忆 Agent 的优势")
+    print("  1. 记住用户身份和技术栈，推荐更有针对性")
+    print("  2. 记住用户偏好，回答风格更符合期望")
+    print("  3. 记忆持久化在 seekdb 中，重启后仍然有效")
+    print("  → 运行 d4_4_memory_agent.py 体验完整的交互式记忆 Agent")
 
-# 第 4 轮：模拟"第二天"重新打开（记忆已持久化在 seekdb 中）
-print("\n【第 4 轮】模拟重启后继续昨天的话题")
-print("-" * 40)
-q4 = "继续昨天的话题，帮我选一个数据库方案。"
-print(f"用户：{q4}")
-a4 = chat_with_memory(q4)
-print(f"Agent：{a4[:300]}{'...' if len(a4) > 300 else ''}")
-print()
-print("  ✅ 注意：Agent 记得你是 Python 开发者，应该推荐 Python 友好的数据库")
 
-# 展示当前记忆库内容
-print()
-print("=" * 60)
-print("当前记忆库内容（共 {} 条）：".format(memory_col.count()))
-print("-" * 40)
-all_memories = memory_col.get()
-if all_memories and all_memories["documents"]:
-    for i, doc in enumerate(all_memories["documents"], 1):
-        print(f"  {i}. {doc}")
+def main():
+    initialize_runtime()
+    run_demo()
 
-print()
-print("=" * 60)
-print("总结：有记忆 Agent 的优势")
-print("  1. 记住用户身份和技术栈，推荐更有针对性")
-print("  2. 记住用户偏好，回答风格更符合期望")
-print("  3. 记忆持久化在 seekdb 中，重启后仍然有效")
-print("  → 运行 d4_4_memory_agent.py 体验完整的交互式记忆 Agent")
+
+if __name__ == "__main__":
+    main()

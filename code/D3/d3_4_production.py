@@ -22,30 +22,32 @@ from openai import OpenAI
 
 # ---------- 0. 连接知识库 ----------
 
-db = pyseekdb.Client()
-collection_name = "d3_product_kb"
-
-if not db.has_collection(collection_name):
-    print("❌ 未找到知识库，请先运行 d3_1_ingest.py 写入数据")
-    exit(1)
-
-collection = db.get_collection(collection_name)
-print(f">>> 已连接知识库：{collection_name}，共 {collection.count()} 条文档\n")
-
-client = OpenAI(
-    api_key=Config.SILICONFLOW_API_KEY,
-    base_url=Config.SILICONFLOW_BASE_URL,
-)
+DATABASE_PATH = Path(__file__).resolve().parent / "d3_seekdb"
+COLLECTION_NAME = "d3_product_kb"
 MODEL = "deepseek-ai/DeepSeek-V3"
+
+
+def create_db_client():
+    """创建路径稳定的 seekdb 客户端。"""
+    return pyseekdb.Client(path=str(DATABASE_PATH))
+
+
+def create_model_client():
+    return OpenAI(
+        api_key=Config.SILICONFLOW_API_KEY,
+        base_url=Config.SILICONFLOW_BASE_URL,
+    )
 
 
 # ---------- 1. 工具描述质量的影响 ----------
 
-print("=" * 60)
-print("【要点一】工具描述质量对 Agent 行为的影响")
-print("=" * 60)
-
-def ask_with_tool_desc(question: str, tool_description: str, label: str) -> str:
+def ask_with_tool_desc(
+    question: str,
+    tool_description: str,
+    label: str,
+    *,
+    api_client,
+) -> str:
     """用指定的工具描述发起 Agent 调用"""
     tools = [{
         "type": "function",
@@ -67,81 +69,40 @@ def ask_with_tool_desc(question: str, tool_description: str, label: str) -> str:
         {"role": "user", "content": question}
     ]
 
-    response = client.chat.completions.create(
+    response = api_client.chat.completions.create(
         model=MODEL,
         messages=messages,
         tools=tools,
     )
 
-    message = response.choices[0].message
-    if message.tool_calls:
-        return f"[{label}] ✅ Agent 调用了工具，查询：\"{json.loads(message.tool_calls[0].function.arguments)['query']}\""
-    else:
-        return f"[{label}] ⚠️  Agent 直接回答（未调用工具）：\"{message.content[:80]}...\""
+    choices = getattr(response, "choices", None)
+    if not choices:
+        return f"[{label}] ⚠️  模型未返回有效内容"
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        return f"[{label}] ⚠️  模型未返回有效内容"
+
+    if getattr(message, "tool_calls", None):
+        tool_call = message.tool_calls[0]
+        function = getattr(tool_call, "function", None)
+        function_name = getattr(function, "name", "")
+        if function_name != "search_knowledge_base":
+            return f"[{label}] ⚠️  未知工具：{function_name or '未提供名称'}"
+        try:
+            arguments = json.loads(getattr(function, "arguments", ""))
+        except (TypeError, json.JSONDecodeError):
+            return f"[{label}] ⚠️  工具调用参数不是有效 JSON"
+        query = arguments.get("query") if isinstance(arguments, dict) else None
+        if not isinstance(query, str) or not query.strip():
+            return f"[{label}] ⚠️  工具调用缺少非空字符串参数 query"
+        return f"[{label}] ✅ Agent 调用了工具，查询：\"{query.strip()}\""
+
+    content = getattr(message, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        return f"[{label}] ⚠️  模型未返回有效内容"
+    return f"[{label}] ⚠️  Agent 直接回答（未调用工具）：\"{content[:80]}...\""
 
 
-# 测试问题：这个问题应该触发工具调用
-test_q = "OB-4.2.1 版本和旧版本兼容吗？"
-print(f"\n测试问题：{test_q}\n")
-
-# 模糊的工具描述
-vague_desc = "查询数据库"
-result1 = ask_with_tool_desc(test_q, vague_desc, "模糊描述")
-print(result1)
-
-# 清晰的工具描述
-clear_desc = (
-    "从产品知识库中检索相关信息。"
-    "当用户询问产品功能、错误码、版本信息、性能优化、营收数据等问题时使用。"
-    "查询文本应保留用户问题中的关键词和专有名词（如版本号、错误码）。"
-)
-result2 = ask_with_tool_desc(test_q, clear_desc, "清晰描述")
-print(result2)
-
-print()
-print("结论：工具描述越清晰，Agent 越能在正确的时机调用工具。")
-print("      模糊的描述会导致 Agent 不知道什么时候该用这个工具。")
-
-
-# ---------- 2. top_k 参数的取舍 ----------
-
-print()
-print("=" * 60)
-print("【要点二】top_k 参数的取舍")
-print("=" * 60)
-
-query = "数据库性能优化"
-print(f"\n查询：\"{query}\"")
-print()
-
-for top_k in [1, 3, 5, 8]:
-    results = collection.hybrid_search(
-        query={"where_document": {"$contains": "性能"}, "n_results": top_k + 2},
-        knn={"query_texts": [query], "n_results": top_k + 2},
-        rank={"rrf": {}},
-        n_results=top_k,
-    )
-    docs = results.get("documents", [[]])[0]
-    # 计算相关内容比例（包含"性能"或"优化"的文档）
-    relevant = sum(1 for d in docs if "性能" in d or "优化" in d or "索引" in d or "分区" in d)
-    print(f"  top_k={top_k}：返回 {len(docs)} 条，其中相关 {relevant} 条，"
-          f"噪声比例 {(len(docs)-relevant)/max(len(docs),1)*100:.0f}%")
-
-print()
-print("结论：top_k 设太小可能遗漏关键信息，设太大会引入噪声干扰模型推理。")
-print("      实践中 top_k=3~5 是常见起点，根据数据密度和查询类型调整。")
-
-
-# ---------- 3. 增量更新知识库 ----------
-
-print()
-print("=" * 60)
-print("【要点三】增量更新知识库（不需要全量重建）")
-print("=" * 60)
-
-print(f"\n当前知识库文档数：{collection.count()}")
-
-# 模拟新增一条文档（比如新版本发布说明）
 new_doc = {
     "id": "kb_013",
     "content": "OB-4.3.0 版本新特性：支持向量索引加速，引入自适应压缩算法，存储空间减少 30%。与 OB-4.2.x 完全兼容，支持滚动升级。",
@@ -149,35 +110,77 @@ new_doc = {
     "version": "4.3.0"
 }
 
-# 增量写入（不删除已有数据）
-# 先检查是否已存在，避免重复写入报错
-existing = collection.get(ids=[new_doc["id"]])
-if not existing.get("ids"):
-    collection.add(
-        ids=[new_doc["id"]],
-        documents=[new_doc["content"]],
-        metadatas=[{"doc_type": new_doc["doc_type"], "version": new_doc["version"]}],
+
+def upsert_document(collection, document):
+    """原子写入单条文档，避免检查后写入竞态。"""
+    collection.upsert(
+        ids=[document["id"]],
+        documents=[document["content"]],
+        metadatas=[{
+            "doc_type": document["doc_type"],
+            "version": document["version"],
+        }],
     )
-    print(f"增量写入 1 条新文档后：{collection.count()} 条")
-else:
-    print(f"文档已存在，当前共 {collection.count()} 条")
 
-# 验证新文档可以被检索到（用元数据过滤，因为版本号含点号全文搜索不支持）
-results = collection.query(
-    query_texts=["OB-4.3.0 版本特性"],
-    where={"version": "4.3.0"},
-    n_results=1,
-)
-docs = results.get("documents", [[]])[0]
-if docs and "4.3.0" in docs[0]:
-    print(f"✅ 新文档可以被检索到：{docs[0][:60]}...")
-else:
-    print("⚠️  新文档未被检索到")
 
-print()
-print("结论：seekdb 支持对已有集合追加数据，不需要每次都删库重建。")
-print("      生产环境中，'数据新鲜度'往往比'检索算法精细调优'更影响用户体验。")
+def main():
+    with create_db_client() as database:
+        if not database.has_collection(COLLECTION_NAME):
+            print("❌ 未找到知识库，请先运行 d3_1_ingest.py 写入数据")
+            return
+        collection = database.get_collection(COLLECTION_NAME)
+        client = create_model_client()
+        print(
+            f">>> 已连接知识库：{COLLECTION_NAME}，"
+            f"共 {collection.count()} 条文档\n"
+        )
 
-print()
-print("=" * 60)
-print("✅ d3_4 完成！三个生产要点演示结束。")
+        print("=" * 60)
+        print("【要点一】工具描述质量对 Agent 行为的影响")
+        print("=" * 60)
+        test_q = "OB-4.2.1 版本和旧版本兼容吗？"
+        print(
+            ask_with_tool_desc(
+                test_q,
+                "查询数据库",
+                "模糊描述",
+                api_client=client,
+            )
+        )
+        clear_desc = (
+            "从产品知识库中检索相关信息。"
+            "当用户询问产品功能、错误码、版本信息、性能优化、营收数据等问题时使用。"
+        )
+        print(
+            ask_with_tool_desc(
+                test_q,
+                clear_desc,
+                "清晰描述",
+                api_client=client,
+            )
+        )
+
+        print("\n【要点二】top_k 参数的取舍")
+        query = "数据库性能优化"
+        for top_k in [1, 3, 5, 8]:
+            results = collection.hybrid_search(
+                query={
+                    "where_document": {"$contains": "性能"},
+                    "n_results": top_k + 2,
+                },
+                knn={"query_texts": [query], "n_results": top_k + 2},
+                rank={"rrf": {}},
+                n_results=top_k,
+            )
+            docs = results.get("documents", [[]])[0]
+            print(f"  top_k={top_k}：返回 {len(docs)} 条")
+
+        print("\n【要点三】增量更新知识库")
+        upsert_document(collection, new_doc)
+        print(f"增量写入或更新 1 条文档后：{collection.count()} 条")
+
+    print("\n✅ d3_4 完成！三个生产要点演示结束。")
+
+
+if __name__ == "__main__":
+    main()

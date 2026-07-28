@@ -160,11 +160,20 @@ class FactMemoryStore:
         selected = self.facts[:k]
         return sum(estimate_tokens(item) for item in selected)
 
-    def consolidate_topic(self, topic_keywords: list[str], min_count: int = 3) -> str | None:
+    def consolidate_topic(
+        self,
+        topic_keywords: list[str],
+        distilled_fact: str,
+        min_count: int = 3,
+    ) -> str | None:
         """
         把同一话题下的多条碎片记忆，蒸馏成一条稳定事实。
         对应课程伪代码 consolidate_topic。
         """
+        if not isinstance(distilled_fact, str) or not distilled_fact.strip():
+            raise ValueError("distilled_fact must be a non-empty explicit fact")
+        distilled_fact = distilled_fact.strip()
+
         matched = [
             fact for fact in self.facts
             if any(kw.lower() in fact.lower() for kw in topic_keywords)
@@ -172,13 +181,12 @@ class FactMemoryStore:
         if len(matched) < min_count:
             return None
 
-        distilled = "用户后端已从 Flask 迁移到 FastAPI"
         # 碎片移出检索面，只保留稳定事实
         self.archived_fragments.extend(matched)
         self.facts = [fact for fact in self.facts if fact not in matched]
-        if distilled not in self.facts:
-            self.facts.insert(0, distilled)
-        return distilled
+        if distilled_fact not in self.facts:
+            self.facts.insert(0, distilled_fact)
+        return distilled_fact
 
 
 @dataclass
@@ -260,6 +268,7 @@ def demo_consolidation(fact_store: FactMemoryStore) -> None:
     distilled = fact_store.consolidate_topic(
         # 只聚合成“迁移”话题，避免把 Redis 等长尾事实误归档
         topic_keywords=["Flask", "偏慢", "迁移到 FastAPI", "切到 FastAPI"],
+        distilled_fact="用户后端已从 Flask 迁移到 FastAPI",
         min_count=3,
     )
     print(f"  蒸馏结果：{distilled}")

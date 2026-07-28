@@ -19,6 +19,8 @@ d4_7：长期记忆冷热分层
 from __future__ import annotations
 
 import math
+import uuid
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -50,8 +52,6 @@ class TieredMemoryStore:
 
     memories: dict[str, TieredMemory] = field(default_factory=dict)
     archive: dict[str, TieredMemory] = field(default_factory=dict)
-    _seq: int = 0
-
     def add(
         self,
         content: str,
@@ -60,9 +60,8 @@ class TieredMemoryStore:
         days_since_access: int,
         is_profile: bool = False,
     ) -> TieredMemory:
-        self._seq += 1
         mem = TieredMemory(
-            id=f"mem_{self._seq:03d}",
+            id=str(uuid.uuid4()),
             content=content,
             user_id=user_id,
             retention=retention,
@@ -75,9 +74,23 @@ class TieredMemoryStore:
             self.archive[mem.id] = mem
         else:
             self.memories[mem.id] = mem
-        return mem
+        return deepcopy(mem)
 
-    def get(self, memory_id: str) -> TieredMemory | None:
+    def get(self, memory_id: str, requester_id: str) -> TieredMemory | None:
+        """仅所有者可按 ID 读取；返回副本，避免绕过迁移规则修改存储。"""
+        if not requester_id:
+            raise ValueError("requester_id is required for memory reads")
+        mem = self._find(memory_id)
+        if mem is None:
+            return None
+        if mem.user_id != requester_id:
+            raise PermissionError(
+                f"User {requester_id} cannot read memory owned by {mem.user_id}"
+            )
+        return deepcopy(mem)
+
+    def _find(self, memory_id: str) -> TieredMemory | None:
+        """内部迁移路径使用的存储对象查找。"""
         return self.memories.get(memory_id) or self.archive.get(memory_id)
 
     def search(self, query: str, user_id: str, include_cold: bool = False) -> list[TieredMemory]:
@@ -98,7 +111,7 @@ class TieredMemoryStore:
                 hits.append((score, mem))
 
         hits.sort(key=lambda item: item[0], reverse=True)
-        return [mem for _, mem in hits]
+        return [deepcopy(mem) for _, mem in hits]
 
     def archive_memory(self, memory_id: str) -> None:
         mem = self.memories.pop(memory_id, None)
@@ -109,7 +122,7 @@ class TieredMemoryStore:
         self.archive[memory_id] = mem
 
     def drop_from_hot_index(self, memory_id: str) -> None:
-        mem = self.get(memory_id)
+        mem = self._find(memory_id)
         if mem is not None:
             mem.in_hot_index = False
 
@@ -144,26 +157,32 @@ def assign_tier(memory: TieredMemory, retention: float, days_since_access: int) 
 
 
 def migrate_if_needed(store: TieredMemoryStore, memory: TieredMemory) -> str | None:
-    """分层变化时迁移：降温归档 / 回热唤醒"""
-    new_tier = assign_tier(memory, memory.retention, memory.days_since_access)
-    if new_tier == memory.tier:
+    """受控同步新指标，并在存储内部原子完成分层迁移。"""
+    stored = store._find(memory.id)
+    if stored is None:
         return None
 
-    old_tier = memory.tier
-    if new_tier == "cold":
-        store.archive_memory(memory.id)
-        store.drop_from_hot_index(memory.id)
-    elif new_tier == "hot":
-        store.restore_to_hot(memory.id)
-    else:
-        # warm：仍留在线库，但标记层级
-        if memory.id in store.archive:
-            store.restore_to_hot(memory.id)
-        memory = store.get(memory.id)
-        assert memory is not None
-        memory.tier = "warm"
-        memory.in_hot_index = True
+    new_retention = memory.retention
+    new_days_since_access = memory.days_since_access
+    new_tier = assign_tier(stored, new_retention, new_days_since_access)
+    old_tier = stored.tier
 
+    # 只同步分层决策允许更新的字段，不接受副本修改所有者或画像标记。
+    stored.retention = new_retention
+    stored.days_since_access = new_days_since_access
+    if new_tier == old_tier:
+        return None
+
+    if new_tier == "cold":
+        store.memories.pop(stored.id, None)
+        store.archive[stored.id] = stored
+        stored.in_hot_index = False
+    else:
+        store.archive.pop(stored.id, None)
+        store.memories[stored.id] = stored
+        stored.in_hot_index = True
+
+    stored.tier = new_tier
     return f"{old_tier} -> {new_tier}"
 
 

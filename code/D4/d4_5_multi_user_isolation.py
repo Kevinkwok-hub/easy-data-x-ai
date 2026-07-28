@@ -22,9 +22,11 @@ d4_5：多用户 / 多租户记忆隔离
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
 
 # ---------- 1. 数据模型 ----------
@@ -55,7 +57,6 @@ class IsolatedMemoryStore:
 
     def __init__(self) -> None:
         self._store: list[MemoryRecord] = []
-        self._seq = 0
 
     def add(
         self,
@@ -68,16 +69,15 @@ class IsolatedMemoryStore:
         if not user_id:
             raise ValueError("user_id is required for multi-tenant isolation")
 
-        self._seq += 1
         record = MemoryRecord(
-            id=f"mem_{self._seq:03d}",
+            id=str(uuid4()),
             content=content,
             user_id=user_id,
             agent_id=agent_id,
             run_id=run_id,
         )
         self._store.append(record)
-        return record
+        return deepcopy(record)
 
     def search(
         self,
@@ -111,9 +111,23 @@ class IsolatedMemoryStore:
                 results.append((score, mem))
 
         results.sort(key=lambda item: item[0], reverse=True)
-        return [mem for _, mem in results]
+        return [deepcopy(mem) for _, mem in results]
 
-    def get(self, memory_id: str) -> MemoryRecord | None:
+    def get(self, memory_id: str, requester_id: str) -> MemoryRecord | None:
+        """按请求者身份读取记忆；返回副本，防止绕过更新权限修改内部状态。"""
+        if not requester_id:
+            raise ValueError("requester_id is required for memory reads")
+        mem = self._find(memory_id)
+        if mem is None:
+            return None
+        if not self.check_permission(memory_id, requester_id, "read"):
+            raise PermissionError(
+                f"User {requester_id} cannot read memory owned by {mem.user_id}"
+            )
+        return deepcopy(mem)
+
+    def _find(self, memory_id: str) -> MemoryRecord | None:
+        """内部查找返回存储对象，仅供已执行权限检查的写路径使用。"""
         for mem in self._store:
             if mem.id == memory_id:
                 return mem
@@ -126,7 +140,7 @@ class IsolatedMemoryStore:
         permission: str,
     ) -> bool:
         """检查 requester 对某条记忆是否具备指定权限"""
-        mem = self.get(memory_id)
+        mem = self._find(memory_id)
         if mem is None:
             return False
         if mem.user_id == requester_id:
@@ -165,7 +179,7 @@ class IsolatedMemoryStore:
         new_content: str,
     ) -> dict[str, Any]:
         """更新记忆：所有者，或被授予 write 的用户"""
-        mem = self.get(memory_id)
+        mem = self._find(memory_id)
         if mem is None:
             raise ValueError(f"Memory {memory_id} not found")
 
@@ -187,20 +201,30 @@ class IsolatedMemoryStore:
             "deleted_by": requester_id,
         }
 
-    def get_all_for_user(self, user_id: str) -> list[MemoryRecord]:
-        """调试用：列出某用户命名空间内的全部记忆"""
-        return [mem for mem in self._store if mem.user_id == user_id]
+    def get_all_for_user(
+        self,
+        user_id: str,
+        requester_id: str,
+    ) -> list[MemoryRecord]:
+        """列出用户命名空间；请求者只能读取自己的全部记忆。"""
+        if not user_id or not requester_id:
+            raise ValueError("user_id and requester_id are required for memory reads")
+        if requester_id != user_id:
+            raise PermissionError(
+                f"User {requester_id} cannot list memories owned by {user_id}"
+            )
+        return [deepcopy(mem) for mem in self._store if mem.user_id == user_id]
 
     def search_without_isolation(self, query: str) -> list[MemoryRecord]:
         """反例：去掉 user_id 过滤，演示串户风险（仅用于对比，生产禁用）"""
         keywords = [kw for kw in query.lower().split() if kw]
         return [
-            mem for mem in self._store
+            deepcopy(mem) for mem in self._store
             if self._relevance(mem.content, keywords) > 0
         ]
 
     def _require_owned(self, memory_id: str, requester_id: str) -> MemoryRecord:
-        mem = self.get(memory_id)
+        mem = self._find(memory_id)
         if mem is None:
             raise ValueError(f"Memory {memory_id} not found")
         if mem.user_id != requester_id:
@@ -295,14 +319,14 @@ def demo_permission_guard(
         print(f"  PermissionError → {exc}")
         print("  → 正确：非所有者删除被拒绝")
 
-    still_there = store.get(target.id)
+    still_there = store.get(target.id, requester_id="alice")
     assert still_there is not None, "memory should still exist after denied delete"
     print(f"  记忆仍在：[{still_there.id}]")
 
     print("\n[合法] Alice 删除自己的一条记忆")
     result = store.delete(target.id, requester_id="alice")
     print(f"  删除成功：{result}")
-    assert store.get(target.id) is None
+    assert store.get(target.id, requester_id="alice") is None
 
 
 def demo_explicit_share(
@@ -355,7 +379,7 @@ def print_summary(store: IsolatedMemoryStore) -> None:
     print("当前各用户命名空间快照")
     print("=" * 64)
     for user_id in ("alice", "bob"):
-        memories = store.get_all_for_user(user_id)
+        memories = store.get_all_for_user(user_id, requester_id=user_id)
         print(f"\n  [{user_id}] 共 {len(memories)} 条")
         for mem in memories:
             shared = (

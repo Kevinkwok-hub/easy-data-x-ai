@@ -89,7 +89,11 @@ print("【场景三：混合搜索 + 结构化过滤——只搜 4.2 版本的�
 print("查询：'性能优化'，限定 version=4.2\n")
 
 results = collection.hybrid_search(
-    query={"n_results": 5},                                              # 全文搜索（无关键词过滤）
+    query={
+        "where_document": {"$contains": "性能优化"},
+        "where": {"version": "4.2"},
+        "n_results": 5,
+    },  # 全文搜索 + 版本过滤
     knn={"query_texts": ["性能优化"], "where": {"version": "4.2"}, "n_results": 5},  # 向量搜索 + 版本过滤
     rank={"rrf": {}},
     n_results=3,
