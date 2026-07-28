@@ -29,10 +29,16 @@ pip install --upgrade -r requirements.txt
 
 ### 2. 配置 API Key
 
-复制环境变量示例文件：
+macOS/Linux：
 
 ```bash
 cp .env.example .env
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
 ```
 
 编辑 `.env` 文件，填写你的 API Key：
@@ -49,7 +55,16 @@ DASHSCOPE_API_KEY=your_dashscope_api_key_here
 
 ### 3. 运行示例
 
+macOS/Linux：
+
 ```bash
+cd D1
+python3 d1_1_base.py
+```
+
+Windows PowerShell：
+
+```powershell
 cd D1
 python d1_1_base.py
 ```

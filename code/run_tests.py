@@ -25,6 +25,7 @@ class TestGroup:
 TEST_GROUPS = (
     TestGroup("配置", "code", "test_config.py", "code"),
     TestGroup("测试运行器", "code", "test_run_tests.py", "code"),
+    TestGroup("D1 导入路径", "code", "test_example_import_paths.py", "code"),
     TestGroup("D2", "code/D2", "test*.py", "code"),
     TestGroup("D3", "code/D3", "test*.py", "code"),
     TestGroup("D4", "code/D4", "test*.py", "code"),

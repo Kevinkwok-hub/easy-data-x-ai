@@ -116,6 +116,8 @@ npm run docs:dev
 
 ### 本地运行示例代码
 
+macOS/Linux：
+
 ```bash
 cd code
 
@@ -129,6 +131,17 @@ cp .env.example .env
 # 运行示例
 cd D1
 python3 d1_1_base.py
+```
+
+Windows PowerShell：
+
+```powershell
+cd code
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+# 编辑 .env 文件，填写你的 API Key
+cd D1
+python d1_1_base.py
 ```
 
 示例代码会优先读取 `code/.env`；如果该文件不存在，也支持从父目录向上查找 `.env`（例如仓库根目录 `.env`）。已有系统环境变量不会被 `.env` 覆盖。
@@ -233,7 +246,7 @@ python3 d1_1_base.py
     <img src="https://avatars.githubusercontent.com/u/13233790?v=4&s=144" width="72" height="72" alt="liboyang0730" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/liboyang0730" title="打开 liboyang0730 的 GitHub 主页"><kbd><strong>liboyang073…</strong></kbd></a><br />
-  <sub>88 commits</sub>
+  <sub>91 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/knqiufan" title="knqiufan">
@@ -247,6 +260,13 @@ python3 d1_1_base.py
     <img src="https://avatars.githubusercontent.com/u/199622891?v=4&s=144" width="72" height="72" alt="haoye2" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/haoye2" title="打开 haoye2 的 GitHub 主页"><kbd><strong>haoye2</strong></kbd></a><br />
+  <sub>6 commits</sub>
+</td>
+<td align="center" valign="top" width="104">
+  <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
+    <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
+  </a><br />
+  <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
   <sub>6 commits</sub>
 </td>
 <td align="center" valign="top" width="104">
@@ -277,20 +297,13 @@ python3 d1_1_base.py
   <a href="https://github.com/JasonZhang10086" title="打开 JasonZhang10086 的 GitHub 主页"><kbd><strong>JasonZhang1…</strong></kbd></a><br />
   <sub>1 commit</sub>
 </td>
+</tr>
+<tr>
 <td align="center" valign="top" width="104">
   <a href="https://github.com/jay666mnj" title="jay666mnj">
     <img src="https://avatars.githubusercontent.com/u/192066339?v=4&s=144" width="72" height="72" alt="jay666mnj" style="border-radius:50%;" />
   </a><br />
   <a href="https://github.com/jay666mnj" title="打开 jay666mnj 的 GitHub 主页"><kbd><strong>jay666mnj</strong></kbd></a><br />
-  <sub>1 commit</sub>
-</td>
-</tr>
-<tr>
-<td align="center" valign="top" width="104">
-  <a href="https://github.com/Kratos-Lee" title="Kratos-Lee">
-    <img src="https://avatars.githubusercontent.com/u/180283969?v=4&s=144" width="72" height="72" alt="Kratos-Lee" style="border-radius:50%;" />
-  </a><br />
-  <a href="https://github.com/Kratos-Lee" title="打开 Kratos-Lee 的 GitHub 主页"><kbd><strong>Kratos‑Lee</strong></kbd></a><br />
   <sub>1 commit</sub>
 </td>
 <td align="center" valign="top" width="104">
