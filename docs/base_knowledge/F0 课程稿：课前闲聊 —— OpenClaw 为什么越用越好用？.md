@@ -244,8 +244,8 @@ OpenClaw 的源码有几十万行，但让它"越用越好用"的核心机制，
 ![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/base_knowledge/F0/F0-14.png)
 
 
-## What's more?
-## <!-- 这是一张图片，ocr 内容为： -->
+## 课程预告
+<!-- 这是一张图片，ocr 内容为： -->
 ![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/base_knowledge/F0/F0-15.png)
 > 在 OpenClaw 的运行机制背后，数据是关键中的关键。
 >
@@ -269,7 +269,7 @@ Agent 做不好复杂任务，不是推理能力不足，而是它调用的知�
 
 大多数人只盯着前者，我们这门课程会结合后者（Data），**讲清 Data 在 GenAI/Agent 中扮演的角色**——给大家呈现一个以数据为视角的完整认知框架。
 
-我们这套 Easy Data x AI 的课程，希望能为大家建立一个 AI 时代的认知基础：**AI 产品的能力上限 = 数据质量 ********* 模型能力**。
+我们这套 Easy Data x AI 的课程，希望能为大家建立一个 AI 时代的认知基础：**AI 产品的能力上限 = 数据质量 × 模型能力**。
 
 <!-- 这是一张图片，ocr 内容为： -->
 ![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/base_knowledge/F0/F0-17.png)

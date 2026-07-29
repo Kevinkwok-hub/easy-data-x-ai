@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Check seekdb connectivity before running X2 demos.
+运行 X2 示例前检查 seekdb 连接。
 
 Usage:
     python database/check_seekdb.py
@@ -22,16 +22,16 @@ from database.seekdb_client import (
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Check seekdb connectivity for X2")
+    parser = argparse.ArgumentParser(description="检查 X2 使用的 seekdb 连接")
     parser.add_argument(
         "--db-path",
         default=DEFAULT_SEEKDB_PATH,
-        help=f"Embedded data path (default: {DEFAULT_SEEKDB_PATH})",
+        help=f"Embedded 数据路径（默认：{DEFAULT_SEEKDB_PATH}）",
     )
     parser.add_argument(
         "--verbose",
         action="store_true",
-        help="Print resolved connection settings",
+        help="打印解析后的连接配置",
     )
     args = parser.parse_args()
 

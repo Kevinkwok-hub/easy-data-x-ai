@@ -43,9 +43,10 @@ export default defineConfig({
     },
     sidebar: [
       { text: '《Easy Data X AI 课程介绍》', link: '/course-intro' },
+      { text: '学习 FAQ', link: '/faq' },
       {
-        text: '第一章：公共基础知识',
-        collapsed: false,
+        text: '课前导读与公共基础',
+        collapsed: true,
         items: [
           { text: 'F0：课前闲聊 —— OpenClaw 为什么越用越好用？', link: '/base_knowledge/F0 课程稿：课前闲聊 —— OpenClaw 为什么越用越好用？' },
           { text: 'F1：AI 必知必会（一）—— 大模型的本质与边界', link: '/base_knowledge/F1 课程稿：AI 必知必会（一） —— 大模型的本质与边界' },
@@ -54,7 +55,7 @@ export default defineConfig({
       },
       {
         text: '第二章：道篇',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'P1：AI Agent 场景识别', link: '/pm/P1 课程稿：AI Agent 场景识别' },
           { text: 'P2：Agentic RAG 产品设计', link: '/pm/P2 课程稿：Agentic RAG 产品设计' },
@@ -65,7 +66,7 @@ export default defineConfig({
       },
       {
         text: '第三章：术篇',
-        collapsed: false,
+        collapsed: true,
         items: [
           { text: 'D1：大模型 API 基础', link: '/dev/D1 课程稿：大模型 API 工程化基础' },
           { text: 'D2：AI 应用的数据层', link: '/dev/D2 课程稿：AI 应用的数据层' },
@@ -75,25 +76,25 @@ export default defineConfig({
         ]
       },
       {
-        text: '第四章：扩展篇（共建招募中）',
-        collapsed: false,
+        text: '第四章：扩展篇',
+        collapsed: true,
         items: [
           {
             text: 'X1：探究 AI Agent 记忆系统',
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: '系列导读', link: '/extra/X1 探究 AI Agent 记忆系统：从遗忘曲线到永久记忆' },
               { text: 'X1-1：记忆的生命周期工程', link: '/extra/X1-1 记忆的生命周期工程' },
               { text: 'X1-2：记忆的边界与信任', link: '/extra/X1-2 记忆的边界与信任' },
               { text: 'X1-3：从记忆到认知', link: '/extra/X1-3 从记忆到认知' },
-              { text: 'X1-4：AI Memory 系统架构', link: '/extra/X1-4 AI Memory系统架构的构思与随想' },
+              { text: '延伸：AI Memory 系统架构', link: '/extra/X1-4 AI Memory系统架构的构思与随想' },
             ]
           },
-          { text: 'X2：多 Skill 与上下文工程', link: '/extra/X2 多 Skill 给上下文工程带来的麻烦：如何应对 Agent「爆上下文」' },
+          { text: 'X2：多 Skill 与上下文工程（P4 伴读）', link: '/extra/X2 多 Skill 给上下文工程带来的麻烦：如何应对 Agent「爆上下文」' },
           { text: 'X3：混合检索与统一数据基座', link: '/extra/X3 从零到一上手混合检索：AI Native 统一数据基座实战' },
-          { text: 'X4：数据湖库与多模数据降本', link: '/extra/X4 海量 AI Agent 多模数据降本：数据湖库登场' },
-          { text: 'X5：从 Skill 到 MCP Tool', link: '/extra/X5 从 Skill 到 MCP Tool' },
-          { text: 'X6：从 Harness 到 Loop，再到 Graph', link: '/extra/X6 从 Harness 到 Loop，再到 Graph Engineering' }
+          { text: 'X4：数据湖库与多模数据降本（共建中）', link: '/extra/X4 海量 AI Agent 多模数据降本：数据湖库登场' },
+          { text: 'X5：从 Skill 到 MCP Tool（P4 伴读）', link: '/extra/X5 从 Skill 到 MCP Tool' },
+          { text: 'X6：Harness、Loop 与 Graph（D1/D3 进阶）', link: '/extra/X6 从 Harness 到 Loop，再到 Graph Engineering' }
         ]
       }
     ],
@@ -103,7 +104,29 @@ export default defineConfig({
     ],
 
     editLink: {
-      pattern: 'https://github.com/datawhalechina/easy-data-x-ai/blob/main/docs/:path'
+      pattern: 'https://github.com/datawhalechina/easy-data-x-ai/edit/main/docs/:path',
+      text: '在 GitHub 上编辑此页'
+    },
+
+    outline: {
+      label: '本页目录',
+      level: [2, 3]
+    },
+    docFooter: {
+      prev: '上一页',
+      next: '下一页'
+    },
+    sidebarMenuLabel: '课程目录',
+    returnToTopLabel: '返回顶部',
+    skipToContentLabel: '跳转到正文',
+    darkModeSwitchLabel: '切换主题',
+    lightModeSwitchTitle: '切换到浅色模式',
+    darkModeSwitchTitle: '切换到深色模式',
+    notFound: {
+      title: '页面没有找到',
+      quote: '链接可能已更新。你可以回到课程首页，或使用站内搜索继续学习。',
+      linkLabel: '返回首页',
+      linkText: '返回课程首页'
     },
 
     footer: {

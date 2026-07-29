@@ -6,6 +6,9 @@ import imageViewer from 'vitepress-plugin-image-viewer';
 import vImageViewer from 'vitepress-plugin-image-viewer/lib/vImageViewer.vue';
 import { useRoute } from 'vitepress';
 import { h } from 'vue';
+import CourseGuide from './CourseGuide.vue';
+import CourseCompletion from './CourseCompletion.vue';
+import LearningRoutes from './LearningRoutes.vue';
 
 // 公告栏组件
 const Announcement = () => h('div', {
@@ -17,6 +20,7 @@ export default {
     enhanceApp({ app }) {
         // 注册全局组件（可选）
         app.component('vImageViewer', vImageViewer);
+        app.component('LearningRoutes', LearningRoutes);
     },
     setup() {
         const route = useRoute();
@@ -25,7 +29,9 @@ export default {
     },
     Layout() {
         return h(DefaultTheme.Layout, null, {
-            'layout-top': () => h(Announcement)
+            'layout-top': () => h(Announcement),
+            'doc-before': () => h(CourseGuide),
+            'doc-after': () => h(CourseCompletion)
         })
     }
 } satisfies Theme
