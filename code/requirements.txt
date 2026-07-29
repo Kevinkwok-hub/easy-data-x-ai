@@ -22,4 +22,5 @@ pyseekdb>=1.2.0.post1
 PyYAML>=5.4.1
 
 # X5 MCP 实战
-mcp[cli]
+# X5 使用 mcp 1.x 的 FastMCP 导入路径，2.0 已移除该兼容入口。
+mcp[cli]>=1.28.1,<2
