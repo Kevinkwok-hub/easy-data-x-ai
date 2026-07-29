@@ -20,13 +20,15 @@
 >
 > 课程会引用 CoALA 论文框架、ReAct 模式等业界前沿概念，但每个概念都用日常类比和直觉案例讲透，不需要学习者预先具备学术背景。
 
+<LearningRoutes />
+
 ## 这门课程适合谁？
 
 > 双轨并行，论道与习术
 
 为了满足不同角色的学习需求，我们将课程精心设计为两条路径：“道篇”与“术篇”。
 
-![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/course-intro/01.png)
+<img src="/images/course-intro/01.webp" alt="Easy Data x AI 道篇与术篇双轨学习路径" width="2754" height="1584" />
 
 ### 道篇
 
@@ -34,7 +36,7 @@
 
 “道篇” ：在这里，我们不谈代码，只论道 —— 建立判断力，理解基础原理，学习做出正确的判断和选择。
 
-![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/course-intro/02.png)
+<img src="/images/course-intro/02.webp" alt="道篇面向产品决策者，强调判断力和系统设计" width="2752" height="1536" loading="lazy" />
 
 学习“道篇”的同学平时不需要写代码，但需要有足够的认知深度来进行一些判断和决策。
 
@@ -58,7 +60,7 @@
 
 “术篇” ：在这里，我们以可运行的代码和可观察的结果为核心，让你在动手实践中建立工程直觉。
 
-![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/course-intro/03.png)
+<img src="/images/course-intro/03.webp" alt="术篇面向开发者，强调可运行代码和工程实验" width="2752" height="1536" loading="lazy" />
 
 不用担心，我们会把代码体验控制在“五分钟跑通”的量级。深度工程细节一律放入“延伸阅读”，不让主线超载。
 
@@ -77,6 +79,20 @@
 “术篇”的每一课，都承诺“五分钟跑通，然后换成你的数据试试”。
 
 我们相信，最好的学习是亲手实现它。
+
+## 道篇与术篇如何呼应？
+
+两条路线不是按编号机械配对，而是围绕同一个问题分工：道篇负责定义问题、边界和验收标准，术篇负责把这些判断落成代码与实验。
+
+| 道篇的判断 | 对应实战 | 学习闭环 |
+| --- | --- | --- |
+| P1：哪些场景适合 Agent | D1：模型 API 与 Tool Use | 从场景边界到可调用能力 |
+| P2：RAG 六段链路与归因 | D2 → D3：数据层、Agentic RAG 与 60 条评测 | 从“哪里会错”到“怎么实现、怎么验收” |
+| P3：记什么、忘什么、如何治理 | D4：记忆系统接入 | 从记忆策略到可运行系统 |
+| P4：Skill 与知识管理 | X5：从 Skill 到 MCP Tool | 从经验沉淀到标准化工具 |
+| P5：综合案例与度量 | D5 与 `code/P5` | 从产品目标到离线评测和运行指标 |
+
+如果你只走一条路线，也建议在 P2 / D3、P3 / D4 这两组节点交叉阅读。这里的产品决策和工程结果联系最紧密。
 
 ## 课程整体架构
 ```

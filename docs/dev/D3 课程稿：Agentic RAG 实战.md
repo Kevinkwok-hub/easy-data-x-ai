@@ -16,10 +16,11 @@ D2 给了你一个基座：seekdb 数据层。你用三行代码建了一个支�
 
 说白了就是一句话：让 Agent 通过 Tool Use 去调用 seekdb 的检索能力，拿到结果后基于真实数据回答用户的问题。这就是 Agentic RAG——Agent 自主决定“要不要查”、“查什么”、“查到的结果够不够用”，然后基于检索到的内容生成回答。
 
-这一期有两个目标：
+这一期有三个目标：
 
 1. **跑通 Agentic RAG 的完整代码链路**——从用户提问到 Agent 回答，中间经历 Tool Use 调用 seekdb 检索，整个过程完整串通
 2. **通过对比实验亲眼看到差距**——同一组查询，纯向量检索和混合检索的结果差距到底有多大
+3. **把 P2 的工程痛点逐一落地**——加入查询分析、策略路由、权限过滤、融合重排、引用校验、失败重试和 60 条离线评测
 
 第二个目标是这节课的重头戏。不需要看论文，不需要听人讲道理——跑一次实验，数据替你说话。
 
@@ -47,33 +48,16 @@ D2 给了你一个基座：seekdb 数据层。你用三行代码建了一个支�
 我们的示例数据集模拟了一个技术产品的知识库——包含产品文档、错误码手册、版本发布说明、性能调优指南等内容。这些内容已经完成了分块处理，每条记录就是一个 chunk。
 
 ```python
-from pyseekdb import SeekDB
+from d3_1_ingest import build_knowledge_base, create_db_client
 
-db = SeekDB()
-
-# 创建知识库集合
-db.create_collection(
-    name="product_kb",
-    vector_column="content",
-    fulltext_columns=["content"]
-)
-
-# 示例数据集：模拟真实产品知识库的文档分块
-knowledge_chunks = [
-    {"content": "OB-4.2.1 版本兼容性说明：OB-4.2.1 与 OB-4.1.x 保持向后兼容，但不兼容 OB-3.x 系列。升级前请确认所有客户端驱动已更新至 4.x 版本。已知问题：在 ARM 架构下 JIT 编译存在偶发性能退化。",
-     "doc_type": "release_notes", "version": "4.2.1"},
-    {"content": "OB-4.1.0 版本兼容性说明：OB-4.1.0 为大版本升级，不兼容 OB-3.x 的数据格式，需要执行数据迁移工具。与 OB-4.0.x 保持兼容。",
-     "doc_type": "release_notes", "version": "4.1.0"},
-    {"content": "错误码 E-4012：数据库连接池耗尽。当并发连接数超过 max_connections 配置值时触发。解决方案：(1) 增大 max_connections 参数，(2) 检查应用是否存在连接泄漏，(3) 考虑使用连接池中间件。",
-     "doc_type": "error_codes", "version": "4.2"},
-    {"content": "错误码 E-4013：认证握手超时。客户端在 10 秒内未完成认证流程时触发。解决方案：(1) 检查网络延迟，(2) 确认 SSL 证书配置正确，(3) 排查防火墙是否拦截了认证端口。",
-     "doc_type": "error_codes", "version": "4.2"},
-    ...
-]
-
-db.insert(collection_name="product_kb", documents=knowledge_chunks)
-print(f"已写入 {len(knowledge_chunks)} 个知识片段")
+# get_or_create_collection + upsert 让重复运行保持幂等，
+# 不会为了演示而删除读者已有的数据。
+with create_db_client() as database:
+    collection = build_knowledge_base(database)
+    print(f"已写入或更新 {collection.count()} 个知识片段")
 ```
+
+完整示例数据和元数据位于 `code/D3/data/knowledge_base.json`，由 `code/D3/rag_data.py` 统一加载；`d3_1_ingest.py` 只负责写入 seekdb。代码使用当前仓库统一的 seekdb 连接配置，不再复制一套容易漂移的旧 API。
 
 数据就位了。接下来，我们让 Agent 用起来。
 
@@ -103,104 +87,40 @@ Agent 基于检索到的真实内容生成最终回答
 
 这里有一个关键的区别值得强调：传统 RAG 是一个固定流程——用户提问，系统自动检索，结果塞给模型，模型回答。整个过程像流水线一样从头到尾执行一遍。而 Agentic RAG 中，**Agent 自己决定要不要检索**。它会先分析用户的问题：这个问题我已经知道答案了吗？还是需要查知识库？查了之后结果够不够用？需不需要换个关键词再查一次？这种主动判断的能力，就是 “Agentic” 这个词的含义——Agent 不是被动执行流程，而是主动做决策。
 
-### 完整代码：从提问到回答
+### 核心代码：多工具、多轮的安全循环
 
 ```python
-from openai import OpenAI
-import json
-
-client = OpenAI()
-
-# 第一步：定义检索工具
-tools = [
-    {
-        "type": "function",
-        "function": {
-            "name": "search_knowledge_base",
-            "description": "从产品知识库中检索相关信息。当用户询问产品功能、错误码、版本信息、性能优化、营收数据等问题时使用。",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "query": {
-                        "type": "string",
-                        "description": "用于检索知识库的查询文本，应尽量保留用户问题中的关键词和专有名词"
-                    }
-                },
-                "required": ["query"]
-            }
-        }
-    }
-]
-
-# 第二步：定义工具执行函数——调用 seekdb 混合检索
-def execute_search(query: str) -> str:
-    results = db.hybrid_search(
-        collection_name="product_kb",
-        query_text=query,
-        top_k=3
-    )
-    if not results:
-        return "知识库中未找到相关内容。"
-
-    formatted = []
-    for i, r in enumerate(results):
-        formatted.append(f"[结果 {i+1}] (相关度: {r['score']:.3f})\n{r['content']}")
-    return "\n\n".join(formatted)
-
-# 第三步：Agentic RAG 主循环
-def ask_agent(question: str) -> str:
-    messages = [
-        {"role": "system", "content": (
-            "你是一个产品技术文档助手。回答用户问题时，请先查询知识库获取准确信息，"
-            "然后基于查询结果回答。如果知识库中没有相关信息，请诚实告知用户。"
-            "回答时请引用具体的数据和版本号，不要猜测。"
-        )},
-        {"role": "user", "content": question}
-    ]
-
+while True:
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model=MODEL,
         messages=messages,
-        tools=tools
+        tools=tools,
     )
-
     message = response.choices[0].message
+    tool_calls = message.tool_calls or []
 
-    # Agent 决定调用工具
-    if message.tool_calls:
-        tool_call = message.tool_calls[0]
-        arguments = json.loads(tool_call.function.arguments)
-        query_text = arguments["query"]
+    if not tool_calls:
+        return message.content or "模型未返回有效内容。"
 
-        print(f"  🔍 Agent 决定检索: \"{query_text}\"")
-
-        search_results = execute_search(query_text)
-
-        messages.append(message)
+    # 同一轮可能有多个工具调用，必须逐个执行并回传。
+    messages.append(message)
+    for tool_call in tool_calls:
+        result = _tool_result(tool_call, search_fn)
         messages.append({
             "role": "tool",
             "tool_call_id": tool_call.id,
-            "content": search_results
+            "content": result,
         })
-
-        final_response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            tools=tools
-        )
-
-        return final_response.choices[0].message.content
-
-    # Agent 决定不调用工具，直接回答
-    print("  ✅ Agent 决定直接回答")
-    return message.content
 ```
 
-来试一下：
+这里省略了参数 JSON 校验、未知工具处理、重复调用 ID 检查和最大轮数保护。它们都在 `code/D3/d3_2_agentic_rag.py` 的 `run_agent_loop()` 中，并有离线回归测试覆盖。不要只复制这一小段作为生产实现。
 
-```python
-answer = ask_agent("OB-4.2.1 版本和旧版本兼容吗？")
-print(answer)
+完整运行：
+
+```bash
+cd code
+python D3/d3_1_ingest.py
+python D3/d3_2_agentic_rag.py
 ```
 
 你会看到这样的过程：Agent 收到用户问题，判断需要查知识库，通过 Tool Use 声明调用 `search_knowledge_base`，你的代码执行 seekdb 混合检索，结果返回给 Agent，Agent 基于检索到的 OB-4.2.1 兼容性文档生成一个准确的回答——引用了具体的版本号、兼容性关系和已知问题。
@@ -218,36 +138,22 @@ print(answer)
 ### 构建对比实验
 
 ```python
-def compare_search(query: str):
-    """对比纯向量检索和混合检索的结果"""
-    print(f"查询: \"{query}\"")
-    print("-" * 60)
-
-    # 纯向量检索
-    vector_results = db.vector_search(
-        collection_name="product_kb",
-        query_text=query,
-        top_k=3
+def vector_only(query, collection):
+    return collection.query(
+        query_texts=[query],
+        n_results=3,
     )
 
-    # 混合检索
-    hybrid_results = db.hybrid_search(
-        collection_name="product_kb",
-        query_text=query,
-        top_k=3
+def hybrid_with_keyword(query, keyword, collection):
+    return collection.hybrid_search(
+        query={"where_document": {"$contains": keyword}, "n_results": 5},
+        knn={"query_texts": [query], "n_results": 5},
+        rank={"rrf": {}},
+        n_results=3,
     )
-
-    print("纯向量检索 Top-3:")
-    for i, r in enumerate(vector_results):
-        snippet = r["content"][:60].replace("\n", " ")
-        print(f"  {i+1}. [{r['score']:.3f}] {snippet}...")
-
-    print("混合检索 Top-3:")
-    for i, r in enumerate(hybrid_results):
-        snippet = r["content"][:60].replace("\n", " ")
-        print(f"  {i+1}. [{r['score']:.3f}] {snippet}...")
-    print()
 ```
+
+完整的五组对照及命中统计位于 `code/D3/d3_3_compare.py`。版本号包含点号时，示例会改用元数据过滤，避免把所有精确标识符都硬塞给全文分词器。
 
 ### 运行实验
 
@@ -292,7 +198,7 @@ for query in test_queries:
 
 ### 关键发现
 
-5 条查询中，纯向量检索只在 1 条上给出了正确的 Top-1 结果（命中率 20%），混合检索在全部 5 条上都正确（命中率 100%）。
+这五条是用于观察差异的教学案例，不预设你的运行结果一定是 20% 对 100%。Embedding 模型、数据库版本和数据内容都会影响排名，请以 `d3_3_compare.py` 打印的实际 Top-1 与命中统计为准。
 
 而且这不是我们刻意挑的“刁钻查询”。你回想一下自己日常工作中查文档的场景：查某个版本的功能、查某个错误码的解决方案、查某个季度的数据、查某个 API 的用法——**这些就是最常见的查询类型，而它们恰恰是纯向量检索最容易翻车的地方**。
 
@@ -308,19 +214,12 @@ for query in test_queries:
 
 把实验结果放到 Agentic RAG 的上下文中更容易理解。我们拿“2024年Q3营收数据”这条查询举个例子：
 
-```python
-# 用纯向量检索的 Agentic RAG
-answer_vector = ask_agent_with_vector_only("2024年Q3的总营收是多少？")
-# Agent 可能基于 Q2 的数据回答："2024年Q3总营收为 2.41 亿元"
-# → 错误！2.41 亿是 Q2 的数据，Q3 是 2.87 亿
-
-# 用混合检索的 Agentic RAG
-answer_hybrid = ask_agent_with_hybrid("2024年Q3的总营收是多少？")
-# Agent 基于 Q3 的数据回答："2024年Q3总营收为 2.87 亿元，同比增长 34%"
-# → 正确
+```bash
+cd code
+python D3/d3_3_compare.py
 ```
 
-同一个 Agent，同一个模型，同一个 Prompt，唯一的差别是检索策略——**结果一个答对了，一个答错了。** 这就是数据层选型的影响力。
+脚本会在同一个知识库上运行纯向量、混合检索和元数据过滤，并根据实际 Top-1 内容统计结果。正文中的表格是帮助理解的示例，不应替代你本机的真实输出。
 
 ## 第四部分：从实验到生产——你需要知道的几件事
 
@@ -345,6 +244,53 @@ top_k 设太小，可能遗漏关键信息；设太大，会给模型传入大�
 知识库不是一次性构建完就不管了。文档会更新，错误码会新增，版本会迭代。你需要一个机制来保持知识库数据和源文档的同步。最简单的方案是定期全量重建，但更实际的做法是增量更新——只处理变更的文档。seekdb 支持对已有集合追加和更新数据，你不需要每次都删库重建。
 
 在生产环境中，“数据新鲜度”往往比“检索算法的精细调优”更影响用户体验——Agent 回答了一个三个月前就已经修复的 bug 的解决方案，用户的信任会立刻崩塌。这也是为什么 P2 讲知识库是产品决策：**更新频率本身就是一个需要 PM 和开发共同决定的产品策略**。
+
+## 第五部分：让 D3 回答 P2 的工程问题
+
+到这里，我们已经跑通 Demo，但 P2 提到的生产问题还不能停留在提醒。`code/D3/rag_engineering.py` 把六段链路拆成可测试的纯函数，再通过依赖注入接入真实数据库和模型。
+
+| P2 的阶段与风险 | D3 的落地实现 | 如何验证 |
+| --- | --- | --- |
+| 数据准备：重复写入、来源与元数据漂移 | 固定集合 + `upsert`，保留稳定文档 ID 和元数据 | 重复执行写入测试 |
+| 查询分析：版本号、错误码被语义稀释 | `analyze_query()` 提取精确标识符并选择向量或混合策略 | 精确查询与语义查询路由测试 |
+| 检索：只走单一路径容易漏召回 | 检索器以统一 `Evidence` 结构返回候选 | 60 条六类回归集 |
+| 融合重排：重复结果、越权内容、旧文档混入 | 权限先过滤，RRF 去重；打平时参考来源等级和更新时间 | 权限、稳定排序与上下文预算测试 |
+| 上下文与生成：模型引用不存在的资料 | 上下文携带 `[doc_id]`，`validate_answer()` 拒绝未知或缺失引用 | 引用校验与安全拒答测试 |
+| 评估反馈：只看几个 Demo，不知道改好还是改坏 | 输出 Hit@1、Hit@3、MRR、上下文精确率/召回率、拒答、延迟与调用量 | 自动生成 Markdown 报告 |
+
+### 先跑不需要 API Key 的 60 条离线评测
+
+```bash
+cd code
+PYTHONPATH=D3 python D3/d3_5_evaluate.py
+```
+
+评测集位于 `code/D3/data/evaluation_cases.jsonl`，共六类、每类 10 条：
+
+- 精确标识符
+- 语义改写
+- 口语别名
+- 多证据问题
+- 边界与干扰项
+- 证据不足与安全拒答
+
+当前离线基线会生成 `code/D3/reports/offline-evaluation.md`。它用于稳定验证检索和编排逻辑，不调用模型，也不代表线上模型质量。真实模型的 Faithfulness、Answer Relevancy、延迟和账单，需要在你的环境里单独测量。
+
+同一轮本机离线运行的三策略对比如下，详细口径见 `code/D3/reports/strategy-comparison.md`：
+
+| 方案 | Hit@3 | 拒答准确率 | P95（ms） | 平均检索调用 | 估算 Token |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 纯向量基线 | 0.76 | 0.70 | 0.46 | 1.00 | 9299 |
+| 混合检索 | 0.98 | 1.00 | 0.35 | 1.00 | 10645 |
+| 工程管线 | 1.00 | 1.00 | 0.44 | 1.18 | 10878 |
+
+这组数据没有证明“工程管线更便宜”。相反，它为了补搜和校验付出了更多调用与 Token，换来了更高的复杂问题覆盖率。离线 P95 只代表本机编排开销，真实数据库与模型延迟通常会高几个数量级。
+
+### 失败时怎么恢复
+
+工程流水线最多补搜一次。第一次没有证据或答案引用校验失败时，它会保留错误码、版本号等精确信息扩展查询；第二次仍失败就稳定拒答。若候选资料存在但当前身份无权访问，则直接返回“无权访问”，不会通过重试泄漏标题、ID 或摘要。
+
+这一段闭环正是 P2 所说的 Agentic：系统能根据中间结果决定补搜、停止或拒答，而不是把一条固定流水线包装成 Agent。
 
 ## 我们的思考
 

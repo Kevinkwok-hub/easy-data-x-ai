@@ -13,6 +13,12 @@ hero:
     - theme: brand
       text: 开始学习
       link: /course-intro
+    - theme: alt
+      text: 我是产品 / 决策者
+      link: /course-intro#道篇
+    - theme: alt
+      text: 我是开发者
+      link: /course-intro#术篇
 
 features:
   - title: 💥 前沿

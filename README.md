@@ -119,32 +119,36 @@ npm run docs:dev
 macOS/Linux：
 
 ```bash
-cd code
+# 在仓库根目录创建 Python 3.11 虚拟环境
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r code/requirements-test.txt
+python -m pip check
 
-# 安装 Python 依赖
-pip install -r requirements.txt
+# 先跑不需要 API Key 和数据库的离线评测
+PYTHONPATH=code/D3:code python code/D3/d3_5_evaluate.py
 
-# 配置 API Key
-cp .env.example .env
-# 编辑 .env 文件，填写你的 API Key
-
-# 运行示例
-cd D1
-python3 d1_1_base.py
+# 真实模型示例才需要复制并填写本地配置
+cp code/.env.example code/.env
+python code/D1/d1_1_base.py
 ```
 
 Windows PowerShell：
 
 ```powershell
-cd code
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-# 编辑 .env 文件，填写你的 API Key
-cd D1
-python d1_1_base.py
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r code/requirements-test.txt
+python -m pip check
+$env:PYTHONPATH = "code/D3;code"
+python code/D3/d3_5_evaluate.py
+Copy-Item code/.env.example code/.env
+python code/D1/d1_1_base.py
 ```
 
-示例代码会优先读取 `code/.env`；如果该文件不存在，也支持从父目录向上查找 `.env`（例如仓库根目录 `.env`）。已有系统环境变量不会被 `.env` 覆盖。
+示例代码会优先读取 `code/.env`；如果该文件不存在，也支持从父目录向上查找 `.env`（例如仓库根目录 `.env`）。已有系统环境变量不会被 `.env` 覆盖。`.env` 已被 Git 忽略，但提交前仍应检查差异，避免密钥和个人数据库配置进入仓库。
 
 ---
 

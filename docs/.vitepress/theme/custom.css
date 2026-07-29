@@ -424,15 +424,6 @@
    5. 确认 max-width 值已经被成功覆盖
    ============================================================================ */
 
-/* 表格样式 */
-th,
-td {
-  /* white-space: nowrap !important; */
-  /* 不让th，td内容换行显示 */
-  width: 10%;
-  /* 强制均匀分配宽度 */
-}
-
 /* ============================================================================
    首页按钮样式 - 放大一倍
    ============================================================================ */
@@ -449,6 +440,236 @@ td {
   border-radius: 24px !important;         /* 圆角也相应增大 */
   font-weight: 600 !important;
   letter-spacing: 0.02em !important;
+  transition-property: transform, box-shadow;
+  transition-duration: 180ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.VPHero .VPButton:focus-visible,
+.course-guide a:focus-visible,
+.learning-routes a:focus-visible,
+.course-completion a:focus-visible {
+  outline: 3px solid var(--vp-c-brand-1);
+  outline-offset: 3px;
+}
+
+/* ============================================================================
+   课程路线与章节提示
+   ============================================================================ */
+
+:root {
+  --course-accent: oklch(58% 0.13 199);
+  --course-accent-soft: oklch(96% 0.025 199);
+  --course-surface: oklch(98% 0.006 210);
+  --course-line: oklch(87% 0.025 210);
+}
+
+.dark {
+  --course-accent: oklch(76% 0.11 192);
+  --course-accent-soft: oklch(28% 0.035 202);
+  --course-surface: rgba(255, 255, 255, 0.035);
+  --course-line: rgba(255, 255, 255, 0.09);
+}
+
+.course-guide {
+  display: grid;
+  grid-template-columns: 5px minmax(0, 1fr);
+  margin: 0 0 32px;
+  overflow: hidden;
+  border: 1px solid var(--course-line);
+  border-radius: 14px;
+  background: var(--course-surface);
+}
+
+.course-guide__marker {
+  background: var(--course-accent);
+}
+
+.course-guide__content {
+  padding: 20px 22px;
+}
+
+.course-guide__eyebrow,
+.learning-routes__eyebrow {
+  margin: 0 0 6px !important;
+  color: var(--course-accent) !important;
+  font-size: 12px !important;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.course-guide__title,
+.learning-routes h2,
+.learning-routes h3 {
+  border: 0;
+  text-wrap: balance;
+}
+
+.course-guide__title {
+  margin: 0 0 6px;
+  padding: 0;
+  color: var(--vp-c-text-1);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.012em;
+}
+
+.course-guide__content > p:not(.course-guide__eyebrow, .course-guide__title) {
+  margin: 0;
+  color: var(--vp-c-text-2);
+  text-wrap: pretty;
+}
+
+.course-guide__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--course-line);
+  color: var(--vp-c-text-3);
+  font-size: 14px;
+}
+
+.course-guide a,
+.learning-routes a,
+.course-completion a {
+  color: var(--course-accent);
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.course-completion {
+  margin-top: 56px;
+  padding: 28px 0 4px;
+  border-top: 1px solid var(--course-line);
+}
+
+.course-completion__eyebrow {
+  margin: 0 0 6px;
+  color: var(--course-accent);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.course-completion h2 {
+  margin: 0 0 14px;
+  padding: 0;
+  border: 0;
+  font-size: 22px;
+  letter-spacing: -0.012em;
+  text-wrap: balance;
+}
+
+.course-completion ul {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.course-completion li {
+  position: relative;
+  padding-left: 26px;
+  color: var(--vp-c-text-2);
+}
+
+.course-completion li::before {
+  position: absolute;
+  top: 1px;
+  left: 0;
+  color: var(--course-accent);
+  content: '✓';
+  font-weight: 800;
+}
+
+.learning-routes {
+  margin: 32px 0 40px;
+}
+
+.learning-routes__intro {
+  max-width: 720px;
+  margin-bottom: 18px;
+}
+
+.learning-routes__intro h2 {
+  margin: 0 0 8px;
+  padding: 0;
+  font-size: 25px;
+  letter-spacing: -0.012em;
+}
+
+.learning-routes__intro > p:last-child {
+  color: var(--vp-c-text-2);
+  text-wrap: pretty;
+}
+
+.learning-routes__tracks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.learning-routes__tracks article {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 154px;
+  padding: 22px;
+  border: 1px solid var(--course-line);
+  border-radius: 14px;
+  background: var(--course-surface);
+}
+
+.learning-routes__index {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--course-accent-soft);
+  color: var(--course-accent);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.learning-routes h3 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.learning-routes__tracks p {
+  margin: 0 0 18px;
+  color: var(--vp-c-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.learning-routes__shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  margin-top: 14px;
+  font-size: 14px;
+}
+
+@media (hover: hover) {
+  .course-guide a:hover,
+  .learning-routes a:hover,
+  .course-completion a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .learning-routes__tracks article {
+    transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .learning-routes__tracks article:hover {
+    transform: translateY(-2px);
+  }
 }
 
 /* 品牌按钮（主要按钮）特殊样式 */
@@ -473,5 +694,30 @@ td {
   .VPHero .VPButton.brand {
     font-size: 1.1rem !important;
     padding: 1.1rem 2.2rem !important;
+  }
+
+  .course-guide__footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .learning-routes__tracks {
+    grid-template-columns: 1fr;
+  }
+
+  .learning-routes__tracks article {
+    min-height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .VPHero .VPButton,
+  .learning-routes__tracks article {
+    transition: none;
+  }
+
+  .VPHero .VPButton:hover,
+  .learning-routes__tracks article:hover {
+    transform: none;
   }
 }

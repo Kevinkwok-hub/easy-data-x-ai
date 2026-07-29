@@ -1,0 +1,60 @@
+{"case_id":"exact-01","category":"exact_identifier","question":"E-4012 错误怎么解决？","expected_doc_ids":["kb_004"],"should_answer":true}
+{"case_id":"exact-02","category":"exact_identifier","question":"E-4013 为什么会出现？","expected_doc_ids":["kb_005"],"should_answer":true}
+{"case_id":"exact-03","category":"exact_identifier","question":"E-4011 应该如何排查？","expected_doc_ids":["kb_006"],"should_answer":true}
+{"case_id":"exact-04","category":"exact_identifier","question":"OB-4.2.1 和旧版本兼容吗？","expected_doc_ids":["kb_001"],"should_answer":true}
+{"case_id":"exact-05","category":"exact_identifier","question":"OB-4.1.0 是否兼容 3.x 数据格式？","expected_doc_ids":["kb_002"],"should_answer":true}
+{"case_id":"exact-06","category":"exact_identifier","question":"OB-3.2.4 是最后一个维护版本吗？","expected_doc_ids":["kb_003"],"should_answer":true}
+{"case_id":"exact-07","category":"exact_identifier","question":"2024Q3 总营收是多少？","expected_doc_ids":["kb_007"],"should_answer":true}
+{"case_id":"exact-08","category":"exact_identifier","question":"2024Q2 新增了多少付费客户？","expected_doc_ids":["kb_008"],"should_answer":true}
+{"case_id":"exact-09","category":"exact_identifier","question":"DBMS_HYBRID_SEARCH 函数有什么用途？","expected_doc_ids":["kb_012"],"should_answer":true}
+{"case_id":"exact-10","category":"exact_identifier","question":"parallel_degree 参数应该怎么设置？","expected_doc_ids":["kb_009"],"should_answer":true}
+{"case_id":"semantic-01","category":"semantic","question":"数据库连接太多把连接池占满了怎么办？","expected_doc_ids":["kb_004"],"should_answer":true}
+{"case_id":"semantic-02","category":"semantic","question":"客户端登录数据库时握手一直超时怎么排查？","expected_doc_ids":["kb_005"],"should_answer":true}
+{"case_id":"semantic-03","category":"semantic","question":"系统不认识我写的 SQL 方言应该检查什么？","expected_doc_ids":["kb_006"],"should_answer":true}
+{"case_id":"semantic-04","category":"semantic","question":"从老的 3.x 系列升级到 4.1 要迁移数据吗？","expected_doc_ids":["kb_002"],"should_answer":true}
+{"case_id":"semantic-05","category":"semantic","question":"最近一个季度的云服务收入占比是多少？","expected_doc_ids":["kb_007"],"should_answer":true}
+{"case_id":"semantic-06","category":"semantic","question":"分析型查询怎样利用更多 CPU 加速？","expected_doc_ids":["kb_009"],"should_answer":true}
+{"case_id":"semantic-07","category":"semantic","question":"复合索引的字段顺序应该遵循什么原则？","expected_doc_ids":["kb_010"],"should_answer":true}
+{"case_id":"semantic-08","category":"semantic","question":"时序表按月拆分应该选择哪种分区？","expected_doc_ids":["kb_011"],"should_answer":true}
+{"case_id":"semantic-09","category":"semantic","question":"怎么把语义搜索和关键词搜索的排序合在一起？","expected_doc_ids":["kb_012"],"should_answer":true}
+{"case_id":"semantic-10","category":"semantic","question":"哪个版本建议 3.x 用户尽快升级？","expected_doc_ids":["kb_003"],"should_answer":true}
+{"case_id":"alias-01","category":"alias_rewrite","question":"报错 4012，连接已经用光了，怎么处理？","expected_doc_ids":["kb_004"],"should_answer":true}
+{"case_id":"alias-02","category":"alias_rewrite","question":"认证阶段卡住超过十秒一般是什么故障？","expected_doc_ids":["kb_005"],"should_answer":true}
+{"case_id":"alias-03","category":"alias_rewrite","question":"语句解析不过去，可以先用什么命令验证？","expected_doc_ids":["kb_006"],"should_answer":true}
+{"case_id":"alias-04","category":"alias_rewrite","question":"四点二点一对四点一系列向后兼容吗？","expected_doc_ids":["kb_001"],"should_answer":true}
+{"case_id":"alias-05","category":"alias_rewrite","question":"去年第三季度 License 收入有多少？","expected_doc_ids":["kb_007"],"should_answer":true}
+{"case_id":"alias-06","category":"alias_rewrite","question":"去年第二季度一共收入多少？","expected_doc_ids":["kb_008"],"should_answer":true}
+{"case_id":"alias-07","category":"alias_rewrite","question":"OLAP 的并行度通常设置成几倍核数？","expected_doc_ids":["kb_009"],"should_answer":true}
+{"case_id":"alias-08","category":"alias_rewrite","question":"低基数状态列适合单独建索引吗？","expected_doc_ids":["kb_010"],"should_answer":true}
+{"case_id":"alias-09","category":"alias_rewrite","question":"高并发写入要怎样把热点打散？","expected_doc_ids":["kb_011"],"should_answer":true}
+{"case_id":"alias-10","category":"alias_rewrite","question":"RRF 在这里是拿来合并哪两路搜索的？","expected_doc_ids":["kb_012"],"should_answer":true}
+{"case_id":"multi-01","category":"multi_hop","question":"对比 OB-4.2.1 与 OB-4.1.0 的兼容范围。","expected_doc_ids":["kb_001","kb_002"],"should_answer":true}
+{"case_id":"multi-02","category":"multi_hop","question":"从 OB-3.2.4 升到 OB-4.2.1 要注意哪些兼容问题？","expected_doc_ids":["kb_003","kb_001"],"should_answer":true}
+{"case_id":"multi-03","category":"multi_hop","question":"比较 E-4012 和 E-4013 的原因与排查方向。","expected_doc_ids":["kb_004","kb_005"],"should_answer":true}
+{"case_id":"multi-04","category":"multi_hop","question":"SQL 解析失败和认证超时分别怎么处理？","expected_doc_ids":["kb_006","kb_005"],"should_answer":true}
+{"case_id":"multi-05","category":"multi_hop","question":"2024Q3 相比 2024Q2 总营收增加了多少？","expected_doc_ids":["kb_007","kb_008"],"should_answer":true}
+{"case_id":"multi-06","category":"multi_hop","question":"同时优化并行查询和索引设计时有哪些建议？","expected_doc_ids":["kb_009","kb_010"],"should_answer":true}
+{"case_id":"multi-07","category":"multi_hop","question":"大表分析查询既要并行又要分区，应该怎么设计？","expected_doc_ids":["kb_009","kb_011"],"should_answer":true}
+{"case_id":"multi-08","category":"multi_hop","question":"混合检索函数如何结合索引最佳实践使用？","expected_doc_ids":["kb_012","kb_010"],"should_answer":true}
+{"case_id":"multi-09","category":"multi_hop","question":"Q3 的客户增长和 Q2 相比有什么变化？","expected_doc_ids":["kb_007","kb_008"],"should_answer":true}
+{"case_id":"multi-10","category":"multi_hop","question":"4.2 系列里连接池问题和并行查询分别怎么配置？","expected_doc_ids":["kb_004","kb_009"],"should_answer":true}
+{"case_id":"boundary-01","category":"boundary","question":"OB-4.2.1 是否兼容 OB-3.x？不要引用 4.1 的结论。","expected_doc_ids":["kb_001"],"should_answer":true}
+{"case_id":"boundary-02","category":"boundary","question":"只回答 2024Q3，不要混入 2024Q2 的营收数据。","expected_doc_ids":["kb_007"],"should_answer":true}
+{"case_id":"boundary-03","category":"boundary","question":"我问的是 E-4012，不是相邻的 E-4013。","expected_doc_ids":["kb_004"],"should_answer":true}
+{"case_id":"boundary-04","category":"boundary","question":"认证握手超时对应哪个错误码？不要回答连接池故障。","expected_doc_ids":["kb_005"],"should_answer":true}
+{"case_id":"boundary-05","category":"boundary","question":"语法解析失败该用 EXPLAIN，具体依据是什么？","expected_doc_ids":["kb_006"],"should_answer":true}
+{"case_id":"boundary-06","category":"boundary","question":"OLTP 场景的并行度建议，不要给 OLAP 的值。","expected_doc_ids":["kb_009"],"should_answer":true}
+{"case_id":"boundary-07","category":"boundary","question":"时序数据的分区方式，不要回答高并发写入场景。","expected_doc_ids":["kb_011"],"should_answer":true}
+{"case_id":"boundary-08","category":"boundary","question":"低基数列是否适合单列索引？只依据索引文档回答。","expected_doc_ids":["kb_010"],"should_answer":true}
+{"case_id":"boundary-09","category":"boundary","question":"DBMS_HYBRID_SEARCH 内部采用什么融合算法？","expected_doc_ids":["kb_012"],"should_answer":true}
+{"case_id":"boundary-10","category":"boundary","question":"OB-3.x 最终维护版本是哪一个？","expected_doc_ids":["kb_003"],"should_answer":true}
+{"case_id":"refusal-01","category":"insufficient_evidence","question":"OB-5.0 的发布日期是什么时候？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-02","category":"insufficient_evidence","question":"2025Q1 的总营收是多少？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-03","category":"insufficient_evidence","question":"E-9999 的官方解决方案是什么？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-04","category":"insufficient_evidence","question":"请给出公司 2026 年尚未公开的财务预测。","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-05","category":"insufficient_evidence","question":"OB-4.3.0 的完整新特性列表是什么？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-06","category":"insufficient_evidence","question":"谁是这些文档的作者？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-07","category":"insufficient_evidence","question":"系统在 Windows ARM 上的基准成绩是多少？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-08","category":"insufficient_evidence","question":"请提供未收录的客户名单和联系方式。","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-09","category":"insufficient_evidence","question":"E-4014 的触发条件是什么？","expected_doc_ids":[],"should_answer":false}
+{"case_id":"refusal-10","category":"insufficient_evidence","question":"明年云服务收入会增长多少？","expected_doc_ids":[],"should_answer":false}

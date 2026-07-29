@@ -21,6 +21,8 @@ code/
 
 ## 快速开始
 
+推荐 Python 3.11。CI 固定使用 Python 3.11；X2 与当前 `pyseekdb` 依赖也要求 Python 3.11+。
+
 ### 1. 安装依赖
 
 以下命令均从仓库根目录执行。建议使用独立虚拟环境，避免系统中旧版
@@ -51,16 +53,16 @@ python -m pip check
 macOS/Linux：
 
 ```bash
-cp .env.example .env
+cp code/.env.example code/.env
 ```
 
 Windows PowerShell：
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item code/.env.example code/.env
 ```
 
-编辑 `.env` 文件，填写你的 API Key：
+只有真实模型示例需要 API Key。编辑 `code/.env`，填写你准备使用的服务：
 
 ```bash
 # SiliconFlow API（用于 Hunyuan-MT-7B, DeepSeek-V3 等）
@@ -73,6 +75,14 @@ DASHSCOPE_API_KEY=your_dashscope_api_key_here
 `config.py` 会优先读取 `code/.env`；如果该文件不存在，会继续向上查找父目录中的 `.env`（例如仓库根目录 `.env`）。系统环境变量优先级更高，不会被 `.env` 中的同名变量覆盖。
 
 ### 3. 运行示例
+
+先运行不需要 API Key 和数据库的 D3 离线评测，确认 Python 环境可用：
+
+```bash
+PYTHONPATH=code/D3:code .venv/bin/python code/D3/d3_5_evaluate.py
+```
+
+再运行需要真实模型的示例：
 
 macOS/Linux：
 
@@ -104,6 +114,7 @@ python d1_1_base.py
 | D1/d1_6 | 需要 `DASHSCOPE_API_KEY`，模型为 `qwen-plus`，并需要 seekdb |
 | D2 | 需要 seekdb；语义分块对比还需要 `SILICONFLOW_API_KEY` |
 | D3/D4 | 模型示例需要 `SILICONFLOW_API_KEY`，并需要 seekdb |
+| D3/d3_5 | 60 条确定性离线评测，不需要 API Key 或 seekdb |
 | X2 | Embedded 模式无需外部服务；Server 模式需要先启动 seekdb Server |
 | X5 | 需要安装 MCP 依赖，并准备好 X2 的本地数据 |
 | P5 | 默认使用确定性离线 Agent；LangSmith 上报为可选功能 |
@@ -120,6 +131,13 @@ export SEEKDB_ALLOW_DESTRUCTIVE=1
 ```
 
 最后一个变量允许示例重建集合，只能用于专门的演示/测试数据库，禁止对生产库设置。
+
+健康检查：
+
+```bash
+.venv/bin/python -m pip check
+PYTHONPATH=code .venv/bin/python -c "from seekdb_runtime import create_seekdb_client; print('Python 依赖可导入')"
+```
 
 ## 测试
 
