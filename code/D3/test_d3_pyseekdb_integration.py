@@ -16,18 +16,30 @@ from pyseekdb.client.embedding_function import register_embedding_function
 D3_DIR = Path(__file__).resolve().parent
 
 
-def wait_for_documents(search, timeout_seconds=10):
-    """Embedded 的向量/全文索引可能异步就绪，轮询到可查询后再断言。"""
+def wait_for_documents(
+    search,
+    timeout_seconds=10,
+    expected_top1_contains=None,
+):
+    """索引可能异步就绪，等待非空且目标 Top-1 真正可用。"""
     deadline = time.monotonic() + timeout_seconds
     last_result = {}
     while time.monotonic() < deadline:
         last_result = search()
         documents = last_result.get("documents", [[]])
-        if documents and documents[0]:
+        has_documents = documents and documents[0]
+        top1_is_ready = (
+            expected_top1_contains is None
+            or (
+                has_documents
+                and expected_top1_contains in documents[0][0]
+            )
+        )
+        if has_documents and top1_is_ready:
             return last_result
         time.sleep(0.1)
     raise AssertionError(
-        f"seekdb 索引在 {timeout_seconds} 秒内未返回文档：{last_result}"
+        f"seekdb 索引在 {timeout_seconds} 秒内未返回预期文档：{last_result}"
     )
 
 
@@ -93,6 +105,24 @@ def create_test_client(temp_dir):
     )
 
 
+class WaitForDocumentsTests(unittest.TestCase):
+    def test_waits_past_transient_top1_until_expected_document_is_ready(self):
+        responses = iter(
+            [
+                {"documents": [["临时返回的其他文档"]]},
+                {"documents": [["错误码 E-4012：数据库连接池耗尽。"]]},
+            ]
+        )
+
+        result = wait_for_documents(
+            lambda: next(responses),
+            timeout_seconds=1,
+            expected_top1_contains="E-4012",
+        )
+
+        self.assertIn("E-4012", result["documents"][0][0])
+
+
 class RealPyseekdbIntegrationTests(unittest.TestCase):
     def test_ingest_query_hybrid_and_upsert_in_temporary_database(self):
         if platform.system() == "Darwin" and not os.getenv("SEEKDB_TEST_HOST"):
@@ -125,7 +155,8 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
                         lambda: compare["vector_only"](
                             "E-4012",
                             target_collection=collection,
-                        )
+                        ),
+                        expected_top1_contains="E-4012",
                     )
                     self.assertIn("E-4012", vector_results["documents"][0][0])
 
@@ -134,7 +165,8 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
                             "E-4012 错误怎么解决",
                             "E-4012",
                             target_collection=collection,
-                        )
+                        ),
+                        expected_top1_contains="E-4012",
                     )
                     self.assertIn("E-4012", hybrid_results["documents"][0][0])
 
