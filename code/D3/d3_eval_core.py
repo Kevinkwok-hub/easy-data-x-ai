@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import random
 import re
 from collections import defaultdict
 from pathlib import Path
@@ -26,11 +27,22 @@ RETRIEVAL_METRIC_KEYS = (
 )
 ANCHOR_PATTERNS = (
     r"\bE-\d{4}\b",
-    r"\bOB-\d+(?:\.\d+)+\b",
     r"\bDBMS_[A-Z_]+\b",
-    r"\b20\d{2}年Q[1-4]\b",
-    r"\bQ[1-4]\b",
+    r"\b[a-z]+(?:_[a-z0-9]+)+\b",
+    r"(?<![A-Za-z0-9_])Q[1-4](?![A-Za-z0-9_])",
 )
+LEXICAL_REWRITES = (
+    (r"连接池|连不上|连接相关|连接", "连接"),
+    (r"语义搜|关键词搜|混合检索", "混合检索"),
+    (r"纯向量|向量搜索|向量检索", "向量检索"),
+    (r"付费客户", "付费客户"),
+    (r"营收|生意", "营收"),
+    (r"升级", "升级"),
+    (r"兼容", "兼容"),
+    (r"查询性能|太慢|提速|性能", "性能"),
+    (r"索引", "索引"),
+)
+VERSION_PATTERN = r"\bOB-(\d+(?:\.\d+)+)\b"
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -64,12 +76,23 @@ def scenario_type(case: dict[str, Any]) -> str:
 
 
 def extract_lexical_anchor(question: str) -> str:
-    """仅从用户问题中的可见标识符提取全文锚点；没有标识符时回退到原问题。"""
+    """从用户问题提取短全文查询，不把整句或金标答案送入全文分支。"""
     for pattern in ANCHOR_PATTERNS:
         match = re.search(pattern, question, flags=re.IGNORECASE)
         if match:
             return match.group(0)
-    return question
+    for pattern, keyword in LEXICAL_REWRITES:
+        if re.search(pattern, question, flags=re.IGNORECASE):
+            return keyword
+    return ""
+
+
+def extract_metadata_filter(question: str) -> dict[str, str]:
+    """单一显式版本号用元数据过滤；多版本问题保留给跨文档检索。"""
+    versions = list(dict.fromkeys(re.findall(VERSION_PATTERN, question, re.IGNORECASE)))
+    if len(versions) == 1:
+        return {"version": versions[0]}
+    return {}
 
 
 def reference_doc_ids(case: dict[str, Any]) -> list[str]:
@@ -224,6 +247,91 @@ def aggregate_by_scenario(
     return {
         scenario: aggregate_rows(group, keys)
         for scenario, group in sorted(groups.items())
+    }
+
+
+def _percentile(values: list[float], quantile: float) -> float:
+    if not values:
+        raise ValueError("percentile requires at least one value")
+    ordered = sorted(values)
+    position = (len(ordered) - 1) * quantile
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    fraction = position - lower
+    return ordered[lower] * (1 - fraction) + ordered[upper] * fraction
+
+
+def paired_metric_comparison(
+    vector_rows: Iterable[dict[str, Any]],
+    hybrid_rows: Iterable[dict[str, Any]],
+    key: str,
+    *,
+    resamples: int = 10_000,
+) -> dict[str, Any]:
+    """对同一 case 的指标差值做 bootstrap CI 与配对随机化检验。"""
+    if resamples < 100:
+        raise ValueError("resamples 必须 >= 100")
+    vector_by_id = {str(row.get("case_id")): row for row in vector_rows}
+    hybrid_by_id = {str(row.get("case_id")): row for row in hybrid_rows}
+    common_ids = sorted(vector_by_id.keys() & hybrid_by_id.keys())
+    deltas = []
+    for case_id in common_ids:
+        vector_value = metric_value(vector_by_id[case_id], key)
+        hybrid_value = metric_value(hybrid_by_id[case_id], key)
+        if vector_value is not None and hybrid_value is not None:
+            deltas.append(hybrid_value - vector_value)
+    if not deltas:
+        return {
+            "n_pairs": 0,
+            "mean_delta": None,
+            "ci95": None,
+            "p_value": None,
+            "significant_at_0_05": False,
+        }
+
+    observed = sum(deltas) / len(deltas)
+    seed = int(sha256_text(key)[:16], 16)
+    bootstrap_rng = random.Random(seed)
+    bootstrap_means = [
+        sum(bootstrap_rng.choice(deltas) for _ in deltas) / len(deltas)
+        for _ in range(resamples)
+    ]
+    ci_low = _percentile(bootstrap_means, 0.025)
+    ci_high = _percentile(bootstrap_means, 0.975)
+
+    permutation_rng = random.Random(seed ^ 0x5EED)
+    extreme = 0
+    for _ in range(resamples):
+        permuted = sum(
+            delta if permutation_rng.random() < 0.5 else -delta
+            for delta in deltas
+        ) / len(deltas)
+        if abs(permuted) >= abs(observed) - 1e-12:
+            extreme += 1
+    p_value = (extreme + 1) / (resamples + 1)
+    significant = p_value < 0.05 and not (ci_low <= 0 <= ci_high)
+    return {
+        "n_pairs": len(deltas),
+        "mean_delta": round(observed, 6),
+        "ci95": [round(ci_low, 6), round(ci_high, 6)],
+        "p_value": round(p_value, 6),
+        "significant_at_0_05": significant,
+    }
+
+
+def compare_strategies(
+    vector_rows: Iterable[dict[str, Any]],
+    hybrid_rows: Iterable[dict[str, Any]],
+    keys: Iterable[str],
+) -> dict[str, dict[str, Any]]:
+    """生成所有指标的配对效应量、区间与显著性结果。"""
+    vector_list = list(vector_rows)
+    hybrid_list = list(hybrid_rows)
+    return {
+        key: paired_metric_comparison(vector_list, hybrid_list, key)
+        for key in keys
     }
 
 

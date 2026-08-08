@@ -122,9 +122,9 @@
       "id": "exact_05",
       "scenario": {
         "type": "exact",
-        "subtype": "performance"
+        "subtype": "parameter"
       },
-      "question": "怎么优化数据库的查询性能？",
+      "question": "parallel_degree 参数在 OLAP 和 OLTP 场景分别怎么设置？",
       "reference": "可设置 parallel_degree：OLAP 建议为 CPU 核数两倍，OLTP 保持为 1。",
       "gold": {
         "primary_acceptable_chunk_ids": [

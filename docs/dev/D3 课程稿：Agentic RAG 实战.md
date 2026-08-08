@@ -280,9 +280,18 @@ PYTHONPATH=D3 python D3/d3_5_evaluate.py
 
 60 条离线回归回答的是「检索与编排有没有按金标走对」。若要对照 P2 的四指标框架，还需要在同一知识库、同一批问题下，对纯向量与混合检索各跑一遍「检索 → 生成 → 打分」。为此课程补充了一套 **20 条、四场景** 的 RAGAS 评测集（精确匹配 / 多跳 / 时效 / 模糊，各 5 条），并给知识库增加了升级路径、接口废弃、运维 FAQ 等片段（`kb_013`–`kb_019`）以撑住时效与模糊题。完整标注见 `code/D3/data/eval_dataset.json`。
 
-![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/dev/D3/04-eval-scenario-taxonomy.png)
+四类场景各自回答的问题不同：
 
-这 20 条仍是课程尺度的描述性评测，用来把场景和读表方式跑通，不能推出统计显著性。动手时在写入知识库后执行：
+| 场景 | 代表问题 | 重点观察 |
+| --- | --- | --- |
+| 精确匹配 | 错误码、函数名、参数名、季度 | 全文锚点能否补足向量检索 |
+| 多跳问题 | 跨两个知识片段比较、计算或串联 | 必需事实是否全部进入 Top-K |
+| 时效性查询 | 截止日期、最新季度、当前版本 | 新证据是否覆盖、旧证据是否混入 |
+| 模糊表达 | 口语化、同义改写、缺少专有名词 | 查询分析能否生成有效短关键词 |
+
+混合检索的全文查询只来自用户问题：错误码、函数名、参数名和季度直接作为短锚点；单一版本号改用元数据过滤；模糊与时效问法经过固定的同义词归一化。代码不会读取金标答案来生成关键词，也不会把整句问题原样塞给 `$contains`。如果无法得到独立全文查询，评测会直接失败，避免把「只有向量分支」误记成混合检索。
+
+这 20 条仍是课程尺度的小样本。它适合建立评测流程和观察效应方向，但不能仅凭平均分宣称统计显著。脚本会针对同一 case 计算 `混合 - 纯向量` 的配对均值差、bootstrap 95% 置信区间与配对随机化检验 p-value；只有区间不跨 0 且 `p < 0.05` 时，摘要才标记为显著。动手时在写入知识库后执行：
 
 ```bash
 cd code
@@ -291,6 +300,10 @@ PYTHONPATH=D3 python D3/d3_1_ingest.py
 PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --check-config
 PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --mode retrieval   # 先看金标检索指标
 PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --mode ragas       # 完整 RAGAS（消耗评测 LLM）
+
+# 只有完整成功且准备发布时，才额外生成可提交摘要
+PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --mode ragas \
+  --publish-summary D3/data/live_ragas_summary.json
 ```
 
 核心逻辑可以概括为：换策略时只换检索函数，问题集与打分方式保持不变。
@@ -316,30 +329,19 @@ result = evaluate(
     metrics=[context_recall, context_precision, faithfulness, answer_relevancy],
     llm=evaluator_llm,
     embeddings=evaluator_embeddings,
+    raise_exceptions=True,
 )
 ```
 
-下面引用一次受控 live 运行的脱敏摘要（见 `code/D3/data/live_ragas_summary.json`；生成/评测模型为 `Qwen/Qwen3-8B`，embedding 为 `BAAI/bge-m3`）。本地重跑会有波动，重点看**相对差距**与分场景结构。
+每次运行都会在 `code/D3/data/runs/<UTC 时间>/` 生成以下工件：
 
-| 指标 | 纯向量 | 混合检索 | 差值 |
-| --- | --- | --- | --- |
-| Context Recall | 0.75 | **0.93** | +0.18 |
-| Context Precision | 0.48 | **0.59** | +0.11 |
-| Faithfulness | 0.79 | **0.89** | +0.10 |
-| Answer Relevancy | 0.30 | **0.35** | +0.05 |
-| Evidence Coverage@K（辅助） | 0.70 | **0.90** | +0.20 |
-| Top-1 命中率（辅助） | 0.25 | **0.35** | +0.10 |
+- `run_manifest.json`：数据集 SHA-256、知识库指纹、模型与依赖版本；
+- `case_results.vector.jsonl` / `case_results.hybrid.jsonl`：可逐例复算的检索、答案和评分；
+- `summary.json` / `summary.md`：整体、分场景指标，以及配对置信区间与 p-value。
 
-| 场景 | 纯向量 Top-1 | 混合 Top-1 | 纯向量 Context Recall | 混合 Context Recall |
-| --- | --- | --- | --- | --- |
-| 精确匹配 | 0.00 | **0.20** | 0.80 | **1.00** |
-| 多跳问题 | 0.60 | 0.40 | 1.00 | 1.00 |
-| 时效性查询 | 0.00 | 0.00 | 0.70 | **0.90** |
-| 模糊表达 | 0.40 | **0.80** | 0.50 | **0.80** |
+任何检索、生成或 RAGAS 指标失败，脚本都会返回非零退出码；不会把缺失值丢掉后继续发布平均分。`--publish-summary` 也只会在完整运行通过后写入，并携带与本次运行一致的数据集哈希、知识库指纹及两种策略的逐例结果，确保提交后仍能复算。仓库课程正文不固化某一次易过期的模型分数；需要发布新结果时，应同时审查上述逐例工件和溯源摘要。
 
-![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/dev/D3/05-ragas-comparison.png)
-
-读表时先看 Context Recall / Evidence Coverage，再看生成侧指标；Answer Relevancy 受评测模型影响更大，单次绝对值不要过度解读。维护者可跑 `python -m unittest D3.test_d3_ragas_eval` 校验评测集契约与配置行为。
+读表时先确认 `n_scored == n_total`、`failures` 为空，再看 Context Recall / Evidence Coverage，最后看生成侧指标和配对区间。Answer Relevancy 受评测模型影响较大，单次绝对值不要过度解读。维护者可跑 `python -m unittest D3.test_d3_ragas_eval` 校验评测集、查询分析、失败门禁和统计聚合。
 
 同一轮本机离线运行的三策略对比如下，详细口径见 `code/D3/reports/strategy-comparison.md`：
 
