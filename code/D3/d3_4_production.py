@@ -104,7 +104,7 @@ def ask_with_tool_desc(
 
 
 new_doc = {
-    "id": "kb_013",
+    "id": "kb_runtime_001",
     "content": "OB-4.3.0 版本新特性：支持向量索引加速，引入自适应压缩算法，存储空间减少 30%。与 OB-4.2.x 完全兼容，支持滚动升级。",
     "doc_type": "release_notes",
     "version": "4.3.0"

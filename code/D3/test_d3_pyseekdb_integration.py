@@ -132,6 +132,8 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
         ingest = load_module("d3_1_ingest.py")
         compare = load_module("d3_3_compare.py")
         production = load_module("d3_4_production.py")
+        new_doc_id = production["new_doc"]["id"]
+        self.assertNotIn(new_doc_id, {chunk["id"] for chunk in knowledge_chunks})
         collection_name = f"d3_product_kb_test_{uuid.uuid4().hex}"
         ingest["build_knowledge_base"].__globals__["COLLECTION_NAME"] = collection_name
 
@@ -173,25 +175,25 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
                     production["upsert_document"](
                         collection,
                         {
-                            "id": "kb_013",
+                            "id": new_doc_id,
                             "content": "E-4012 新增诊断步骤：先检查连接泄漏。",
                             "doc_type": "error_codes",
                             "version": "4.3.0",
                         },
                     )
-                    self.assertEqual(13, collection.count())
+                    self.assertEqual(len(knowledge_chunks) + 1, collection.count())
 
                     production["upsert_document"](
                         collection,
                         {
-                            "id": "kb_013",
+                            "id": new_doc_id,
                             "content": "E-4012 更新诊断步骤：检查连接池指标。",
                             "doc_type": "error_codes",
                             "version": "4.3.1",
                         },
                     )
-                    self.assertEqual(13, collection.count())
-                    updated = collection.get(ids=["kb_013"])
+                    self.assertEqual(len(knowledge_chunks) + 1, collection.count())
+                    updated = collection.get(ids=[new_doc_id])
                     self.assertEqual(
                         ["E-4012 更新诊断步骤：检查连接池指标。"],
                         updated["documents"],
