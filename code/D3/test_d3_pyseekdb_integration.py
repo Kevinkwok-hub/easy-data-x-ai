@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pyseekdb
 from pyseekdb.client.embedding_function import register_embedding_function
-
+from rag_data import knowledge_chunks
 
 D3_DIR = Path(__file__).resolve().parent
 
@@ -149,7 +149,7 @@ class RealPyseekdbIntegrationTests(unittest.TestCase):
                         embedding_function=LocalEmbedding(),
                     )
                     collection_created = True
-                    self.assertEqual(12, collection.count())
+                    self.assertEqual(len(knowledge_chunks), collection.count())
 
                     vector_results = wait_for_documents(
                         lambda: compare["vector_only"](

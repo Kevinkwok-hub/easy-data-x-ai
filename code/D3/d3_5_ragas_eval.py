@@ -30,7 +30,6 @@ from d3_eval_core import (
     validate_dataset,
     write_json,
 )
-from seekdb_runtime import create_seekdb_client
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 DATABASE_PATH = Path(__file__).resolve().parent / "d3_seekdb"
@@ -40,6 +39,9 @@ DEFAULT_COLLECTION = "d3_product_kb"
 
 
 def connect_collection(collection_name: str):
+    # 延迟导入，避免单元测试 import 本模块时提前绑定真实 pyseekdb。
+    from seekdb_runtime import create_seekdb_client
+
     db = create_seekdb_client(path=DATABASE_PATH)
     if not db.has_collection(collection_name):
         raise RuntimeError("未找到知识库，请先运行 d3_1_ingest.py 写入数据")
