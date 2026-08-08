@@ -2,9 +2,12 @@ import unittest
 
 from rag_engineering import (
     Evidence,
+    adaptive_retrieve,
     analyze_query,
     build_context,
+    build_retrieval_plan,
     fuse_and_rerank,
+    grade_evidence,
     run_engineering_pipeline,
     validate_answer,
 )
@@ -23,6 +26,84 @@ class QueryAnalysisTests(unittest.TestCase):
 
         self.assertEqual("vector", analysis.strategy)
         self.assertEqual({}, analysis.filters)
+
+    def test_rewrites_colloquial_query_and_keeps_exact_identifiers(self):
+        analysis = analyze_query("OB-4.2.1 连不上咋办？")
+
+        self.assertEqual("OB-4.2.1 连接失败如何处理？", analysis.rewritten_query)
+        self.assertEqual("procedure", analysis.intent)
+        self.assertEqual("OB-4.2.1", analysis.filters["version"])
+        self.assertEqual(("keyword", "vector"), analysis.routes)
+
+        error_analysis = analyze_query("报错 4012 怎么处理？")
+        self.assertIn("E-4012", error_analysis.rewritten_query)
+        self.assertEqual("E-4012", error_analysis.filters["error_code"])
+
+    def test_decomposes_parallel_question_and_adds_structured_route(self):
+        analysis = analyze_query(
+            "查询 OB-4.2.1 与 OB-4.1.0 当前状态，同时给出 E-4012 的排查步骤"
+        )
+
+        self.assertEqual(2, len(analysis.sub_queries))
+        self.assertEqual("OB-4.2.1,OB-4.1.0", analysis.filters["versions"])
+        self.assertEqual("E-4012", analysis.filters["error_code"])
+        self.assertEqual(
+            ("structured", "keyword", "vector"),
+            analysis.routes,
+        )
+
+
+class AdaptiveRetrievalTests(unittest.TestCase):
+    def test_executes_query_plan_across_routes_and_corrective_fallback(self):
+        calls = []
+
+        def make_retriever(route):
+            def retrieve(query, analysis):
+                calls.append((route, query))
+                return [Evidence(f"{route}-{len(calls)}", query, 1.0, route)]
+
+            return retrieve
+
+        analysis = analyze_query("OB-4.2.1 遇到 E-4012 如何处理？")
+        result = adaptive_retrieve(
+            analysis,
+            retrievers={
+                route: make_retriever(route)
+                for route in ("keyword", "vector", "fallback")
+            },
+            retry_count=1,
+        )
+
+        self.assertEqual(("keyword", "vector", "fallback"), result.plan.routes)
+        self.assertEqual(2, len(result.plan.queries))
+        self.assertEqual(6, result.calls)
+        self.assertEqual(6, len(result.candidate_groups))
+        self.assertIn("官方文档", result.plan.queries[-1])
+
+    def test_plan_rejects_missing_matching_retriever(self):
+        analysis = analyze_query("OB-4.2.1 的兼容性如何？")
+
+        with self.assertRaisesRegex(ValueError, "没有与查询计划匹配"):
+            build_retrieval_plan(
+                analysis,
+                available_routes={"structured"},
+            )
+
+    def test_grades_and_filters_weak_evidence_before_generation(self):
+        evidence = [
+            Evidence("strong", "相关证据", 1.0, "vector"),
+            Evidence("weak", "无关内容", 0.9, "vector"),
+        ]
+
+        accepted, grades = grade_evidence(
+            "问题",
+            evidence,
+            grader_fn=lambda question, item: 0.9 if item.doc_id == "strong" else 0.2,
+            threshold=0.5,
+        )
+
+        self.assertEqual(["strong"], [item.doc_id for item in accepted])
+        self.assertEqual(("strong", 0.9), grades[0])
 
 
 class RetrievalFusionTests(unittest.TestCase):
@@ -129,6 +210,38 @@ class AnswerValidationTests(unittest.TestCase):
 
         self.assertFalse(validate_answer("建议直接重启。", evidence).is_valid)
         self.assertFalse(validate_answer("建议直接重启。[kb_999]", evidence).is_valid)
+        self.assertFalse(validate_answer("[kb_004]", evidence).is_valid)
+
+    def test_rejects_an_uncited_claim_even_when_another_claim_is_cited(self):
+        result = validate_answer(
+            "应先检查连接泄漏。[kb_004] 然后直接扩容。",
+            [Evidence("kb_004", "应先检查连接泄漏。", 1.0, "keyword")],
+        )
+
+        self.assertFalse(result.is_valid)
+        self.assertEqual(("然后直接扩容。",), result.unsupported_claims)
+
+    def test_does_not_treat_arbitrary_colon_line_as_a_safe_heading(self):
+        result = validate_answer(
+            "数据库已经恢复：\n处理完成。[kb_004]",
+            [Evidence("kb_004", "处理完成。", 1.0, "keyword")],
+        )
+
+        self.assertFalse(result.is_valid)
+        self.assertIn("数据库已经恢复", result.unsupported_claims[0])
+
+    def test_accepts_injected_semantic_support_check(self):
+        evidence = [Evidence("kb_004", "应先检查连接泄漏。", 1.0, "keyword")]
+
+        result = validate_answer(
+            "建议立即重启。[kb_004]",
+            evidence,
+            question="E-4012 怎么办？",
+            support_fn=lambda question, claim, cited: "重启" not in claim,
+        )
+
+        self.assertFalse(result.is_valid)
+        self.assertIn("建议立即重启", result.unsupported_claims[0])
 
     def test_pipeline_rewrites_and_retries_once_after_weak_evidence(self):
         queries = []
@@ -182,6 +295,42 @@ class AnswerValidationTests(unittest.TestCase):
         self.assertEqual("access_denied", result.status)
         self.assertIn("无权访问", result.answer)
         self.assertNotIn("internal-forecast", result.answer)
+        self.assertIn("相关证据无访问权限", result.trace.validation_failures)
+
+    def test_pipeline_records_adaptive_routes_grades_and_retry_queries(self):
+        def weak_vector(query, analysis):
+            return [Evidence("weak", "无关的营销介绍", 0.9, "vector")]
+
+        def exact_keyword(query, analysis):
+            return []
+
+        def corrective_fallback(query, analysis):
+            if "官方文档" not in query:
+                return []
+            return [Evidence("kb_004", "E-4012 表示连接池耗尽。", 1.0, "fallback")]
+
+        result = run_engineering_pipeline(
+            "E-4012 如何处理？",
+            route_retrievers={
+                "vector": weak_vector,
+                "keyword": exact_keyword,
+                "fallback": corrective_fallback,
+            },
+            evidence_grader_fn=(
+                lambda question, item: 0.9 if item.doc_id == "kb_004" else 0.1
+            ),
+            generate_fn=(
+                lambda question, context: "E-4012 表示连接池耗尽。[kb_004]"
+            ),
+            max_retries=1,
+        )
+
+        self.assertEqual("answered", result.status)
+        self.assertEqual(("keyword", "vector", "fallback"), result.trace.retrieval_routes)
+        self.assertIn("官方文档", result.trace.query_history[-1])
+        self.assertIn(("weak", 0.1), result.trace.evidence_grades)
+        self.assertIn(("kb_004", 0.9), result.trace.evidence_grades)
+        self.assertIn("检索结果未通过相关性评分", result.trace.validation_failures)
 
 
 if __name__ == "__main__":

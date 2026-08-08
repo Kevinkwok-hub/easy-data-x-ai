@@ -157,6 +157,55 @@ def hybrid_retrieve(
     return _score_retrieve(query, analysis, strategy="hybrid")
 
 
+def adaptive_vector_retrieve(
+    query: str,
+    analysis: QueryAnalysis,
+) -> list[list[Evidence]]:
+    """工程管线的向量路由：对敏感拒答和未知标识符不做模糊猜测。"""
+    normalized = _normalize_query(query)
+    query_identifiers = {
+        identifier.upper().replace("年", "")
+        for identifier in _IDENTIFIER_PATTERN.findall(normalized)
+    }
+    if any(hint in query for hint in _SAFE_REFUSAL_HINTS):
+        return []
+    if query_identifiers - _known_identifiers():
+        return []
+    return vector_retrieve(query, analysis)
+
+
+def keyword_route_retrieve(
+    query: str,
+    analysis: QueryAnalysis,
+) -> list[list[Evidence]]:
+    """用精确标识符与词项重叠模拟全文检索路由。"""
+    return _score_retrieve(query, analysis, strategy="hybrid")
+
+
+def structured_route_retrieve(
+    query: str,
+    analysis: QueryAnalysis,
+) -> list[list[Evidence]]:
+    """离线数据没有业务 API，使用严格过滤模拟结构化路由。"""
+    return _score_retrieve(query, analysis, strategy="engineering")
+
+
+def corrective_fallback_retrieve(
+    query: str,
+    analysis: QueryAnalysis,
+) -> list[list[Evidence]]:
+    """第二轮纠错路由，模拟权威文档或备用索引。"""
+    return _score_retrieve(query, analysis, strategy="engineering")
+
+
+OFFLINE_ROUTE_RETRIEVERS = {
+    "vector": adaptive_vector_retrieve,
+    "keyword": keyword_route_retrieve,
+    "structured": structured_route_retrieve,
+    "fallback": corrective_fallback_retrieve,
+}
+
+
 def offline_generate(question: str, context: str) -> str:
     """直接复述证据并保留引用，用于测试检索而不是测试模型文风。"""
     blocks = [block.strip() for block in context.split("\n\n") if block.strip()]
@@ -166,7 +215,7 @@ def offline_generate(question: str, context: str) -> str:
 def _run_case(case: EvaluationCase):
     return run_engineering_pipeline(
         case.question,
-        retrieve_fn=offline_retrieve,
+        route_retrievers=OFFLINE_ROUTE_RETRIEVERS,
         generate_fn=offline_generate,
         max_retries=1,
     )
@@ -180,13 +229,12 @@ def run_offline_evaluation() -> EvaluationReport:
 def compare_offline_strategies() -> dict[str, dict[str, float | int]]:
     """在同一评测集上比较三种策略，不预设工程管线更快或更便宜。"""
     cases = load_evaluation_cases(CASES_PATH)
-    strategy_options = {
+    baseline_options = {
         "vector": (vector_retrieve, 0),
         "hybrid": (hybrid_retrieve, 0),
-        "engineering": (offline_retrieve, 1),
     }
     comparison: dict[str, dict[str, float | int]] = {}
-    for strategy, (retriever, retries) in strategy_options.items():
+    for strategy, (retriever, retries) in baseline_options.items():
         report = evaluate_cases(
             cases,
             lambda case, active_retriever=retriever, max_retries=retries:
@@ -198,6 +246,9 @@ def compare_offline_strategies() -> dict[str, dict[str, float | int]]:
                 ),
         )
         comparison[strategy] = dict(report.metrics)
+    comparison["engineering"] = dict(
+        evaluate_cases(cases, _run_case).metrics
+    )
     return comparison
 
 
