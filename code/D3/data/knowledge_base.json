@@ -70,5 +70,47 @@
     "content": "DBMS_HYBRID_SEARCH 函数说明：执行混合检索，同时利用向量语义搜索和全文关键词搜索。语法：DBMS_HYBRID_SEARCH(collection, query_text, top_k, filters)。内部使用 RRF 算法融合两种搜索的排序结果。",
     "doc_type": "api_reference",
     "version": "4.2"
+  },
+  {
+    "id": "kb_013",
+    "content": "2024年Q1营收数据：总营收 2.05 亿元，同比增长 22%。其中云服务收入 1.28 亿元，License 收入 0.77 亿元。新增付费客户 81 家。说明：截至知识库收录时，2024年已公布季度为 Q1–Q3，其中 Q3 为最新季度。",
+    "doc_type": "financial",
+    "version": "2024Q1"
+  },
+  {
+    "id": "kb_014",
+    "content": "跨大版本升级指南：从 OB-3.x 升级到 OB-4.x 必须执行官方数据迁移工具，不可直接覆盖安装。推荐路径：先升级到 3.x 最终维护版 OB-3.2.4 → 迁移至 OB-4.1.0 → 再升级至 OB-4.2.1。每一步完成后请运行兼容性检查脚本，并确认所有客户端驱动已切换到 4.x。",
+    "doc_type": "release_notes",
+    "version": "4.2.1"
+  },
+  {
+    "id": "kb_015",
+    "content": "连接池治理最佳实践：除调整 max_connections 外，建议设置连接最大生命周期（如 30 分钟）与空闲连接回收（如 5 分钟），避免长连接长期占用池位。出现 E-4012 时，应同时检查应用侧是否未关闭连接，以及是否在高峰前预热连接池。",
+    "doc_type": "best_practices",
+    "version": "4.2"
+  },
+  {
+    "id": "kb_016",
+    "content": "接口废弃说明（2024-10）：DBMS_VECTOR_SEARCH 单路向量检索接口已标记废弃，官方建议迁移到 DBMS_HYBRID_SEARCH。过渡期内旧接口仍可调用，但不再修复缺陷，也不再保证与新版索引格式兼容。",
+    "doc_type": "api_reference",
+    "version": "4.2"
+  },
+  {
+    "id": "kb_017",
+    "content": "版本支持策略：当前推荐生产版本为 OB-4.2.1。OB-4.1.0 仍在维护窗口内；OB-3.2.4 仅提供安全补丁。新部署请直接使用 4.2.1。已知问题汇总见各版本兼容性说明。",
+    "doc_type": "release_notes",
+    "version": "4.2.1"
+  },
+  {
+    "id": "kb_018",
+    "content": "运维 FAQ：用户反馈“连不上数据库”“连接相关报错”时，优先核对是否为 E-4012（连接池耗尽）或 E-4013（认证握手超时）。前者看连接数与泄漏，后者看网络、SSL 与防火墙。",
+    "doc_type": "error_codes",
+    "version": "4.2"
+  },
+  {
+    "id": "kb_019",
+    "content": "检索能力 FAQ：若需求是“既能按意思找文档，又能精确命中错误码/函数名”，应使用混合检索能力，对应 API 为 DBMS_HYBRID_SEARCH，而不是仅调用已废弃的单路向量接口。",
+    "doc_type": "api_reference",
+    "version": "4.2"
   }
 ]

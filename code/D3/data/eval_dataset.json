@@ -1,0 +1,635 @@
+{
+  "schema_version": "2.0",
+  "dataset_id": "d3-course-v2",
+  "description": "D3 课程尺度评测集：精确匹配 / 多跳 / 时效 / 模糊，各 5 条。",
+  "default_top_k": 4,
+  "scenarios": {
+    "exact": "精确标识符与明确事实",
+    "multi_hop": "需要同时覆盖多个必需事实",
+    "temporal": "带 as_of 和过期干扰证据的时效问题",
+    "fuzzy": "口语表达、意图识别和必要澄清"
+  },
+  "cases": [
+    {
+      "id": "exact_01",
+      "scenario": {
+        "type": "exact",
+        "subtype": "version"
+      },
+      "question": "OB-4.2.1 版本和旧版本兼容吗？",
+      "reference": "OB-4.2.1 与 OB-4.1.x 向后兼容，但不兼容 OB-3.x；升级前需更新客户端驱动。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_001"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "compatibility",
+            "acceptable_chunk_ids": [
+              "kb_001"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "exact_02",
+      "scenario": {
+        "type": "exact",
+        "subtype": "error_code"
+      },
+      "question": "错误码 E-4012 怎么解决？",
+      "reference": "E-4012 表示数据库连接池耗尽，应增大 max_connections、排查连接泄漏或使用连接池中间件。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_004"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "error_resolution",
+            "acceptable_chunk_ids": [
+              "kb_004"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "exact_03",
+      "scenario": {
+        "type": "exact",
+        "subtype": "quarter"
+      },
+      "question": "2024年Q3的总营收是多少？",
+      "reference": "2024年Q3 总营收为 2.87 亿元，同比增长 34%。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "revenue",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "exact_04",
+      "scenario": {
+        "type": "exact",
+        "subtype": "function_name"
+      },
+      "question": "DBMS_HYBRID_SEARCH 函数怎么用？",
+      "reference": "DBMS_HYBRID_SEARCH 融合向量和全文检索，使用 RRF 排序。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_012"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "function_usage",
+            "acceptable_chunk_ids": [
+              "kb_012"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "exact_05",
+      "scenario": {
+        "type": "exact",
+        "subtype": "performance"
+      },
+      "question": "怎么优化数据库的查询性能？",
+      "reference": "可设置 parallel_degree：OLAP 建议为 CPU 核数两倍，OLTP 保持为 1。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_009"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "parallel_tuning",
+            "acceptable_chunk_ids": [
+              "kb_009"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "multi_01",
+      "scenario": {
+        "type": "multi_hop",
+        "subtype": "compare_errors"
+      },
+      "question": "E-4012 和 E-4013 的触发条件有什么不同？各自该怎么排查？",
+      "reference": "E-4012 因连接超过 max_connections 触发，应查泄漏；E-4013 因认证超时触发，应查网络、SSL 和防火墙。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_004"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "pool_exhaustion",
+            "acceptable_chunk_ids": [
+              "kb_004"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "auth_timeout",
+            "acceptable_chunk_ids": [
+              "kb_005"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "multi_02",
+      "scenario": {
+        "type": "multi_hop",
+        "subtype": "upgrade_path"
+      },
+      "question": "从 OB-3.2.4 升级到 OB-4.2.1，中间要注意哪些兼容性步骤？",
+      "reference": "应通过官方迁移工具从 3.2.4 经 4.1.0 升级到 4.2.1，并将客户端驱动切换至 4.x。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_014"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "upgrade_path",
+            "acceptable_chunk_ids": [
+              "kb_014"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "driver_compatibility",
+            "acceptable_chunk_ids": [
+              "kb_001"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "multi_03",
+      "scenario": {
+        "type": "multi_hop",
+        "subtype": "quarter_compare"
+      },
+      "question": "2024年Q3 相比 Q2，总营收和云服务收入分别变化了多少？",
+      "reference": "总营收从 2.41 亿增至 2.87 亿，云服务收入从 1.55 亿增至 1.92 亿。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "q3_finance",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "q2_finance",
+            "acceptable_chunk_ids": [
+              "kb_008"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "multi_04",
+      "scenario": {
+        "type": "multi_hop",
+        "subtype": "error_and_governance"
+      },
+      "question": "出现 E-4012 时，除了改 max_connections，连接池治理上还有哪些建议？",
+      "reference": "除调整 max_connections 外，还应排查泄漏、设置连接生命周期与空闲回收。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_004"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "error_resolution",
+            "acceptable_chunk_ids": [
+              "kb_004"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "pool_governance",
+            "acceptable_chunk_ids": [
+              "kb_015"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "multi_05",
+      "scenario": {
+        "type": "multi_hop",
+        "subtype": "layer_compare"
+      },
+      "question": "并行查询优化和 DBMS_HYBRID_SEARCH 分别解决什么问题？能一起用吗？",
+      "reference": "前者优化 SQL 执行性能，后者融合检索排序；二者作用于不同层，可以并存。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_009"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "query_performance",
+            "acceptable_chunk_ids": [
+              "kb_009"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "search_strategy",
+            "acceptable_chunk_ids": [
+              "kb_012"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "temporal_01",
+      "scenario": {
+        "type": "temporal",
+        "subtype": "latest_quarter"
+      },
+      "question": "截至 2024年10月，最新一季度的总营收是多少？",
+      "reference": "截至 2024年10月，最新季度为 Q3，总营收 2.87 亿元。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "latest_revenue",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": "2024-10-01T00:00:00Z",
+        "stale_distractor_chunk_ids": [
+          "kb_008",
+          "kb_013"
+        ]
+      }
+    },
+    {
+      "id": "temporal_02",
+      "scenario": {
+        "type": "temporal",
+        "subtype": "previous_quarter_compare"
+      },
+      "question": "截至 2024年10月，上一季度比再上一季度多新增多少付费客户？",
+      "reference": "Q3 新增 127 家，Q2 新增 98 家，多新增 29 家。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "latest_customer_count",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "previous_customer_count",
+            "acceptable_chunk_ids": [
+              "kb_008"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": "2024-10-01T00:00:00Z",
+        "stale_distractor_chunk_ids": [
+          "kb_013"
+        ]
+      }
+    },
+    {
+      "id": "temporal_03",
+      "scenario": {
+        "type": "temporal",
+        "subtype": "current_recommendation"
+      },
+      "question": "截至 2024年10月，当前推荐升级到哪个版本？有什么已知问题？",
+      "reference": "推荐 OB-4.2.1；ARM 架构下 JIT 编译存在偶发性能退化。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_017"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "recommended_version",
+            "acceptable_chunk_ids": [
+              "kb_017"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "known_issue",
+            "acceptable_chunk_ids": [
+              "kb_001"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": "2024-10-01T00:00:00Z",
+        "stale_distractor_chunk_ids": [
+          "kb_002",
+          "kb_003"
+        ]
+      }
+    },
+    {
+      "id": "temporal_04",
+      "scenario": {
+        "type": "temporal",
+        "subtype": "deprecated_interface"
+      },
+      "question": "截至 2024年10月，旧的纯向量搜索接口还能用吗？官方怎么说？",
+      "reference": "DBMS_VECTOR_SEARCH 已废弃，过渡期可用但不再修复缺陷，应迁移到 DBMS_HYBRID_SEARCH。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_016"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "deprecation_status",
+            "acceptable_chunk_ids": [
+              "kb_016"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": "2024-10-01T00:00:00Z",
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "temporal_05",
+      "scenario": {
+        "type": "temporal",
+        "subtype": "latest_growth"
+      },
+      "question": "截至 2024年10月，相对去年同期，最近一季度营收增长了多少？",
+      "reference": "最近一季度为 2024年Q3，同比增长 34%。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "latest_growth",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": "2024-10-01T00:00:00Z",
+        "stale_distractor_chunk_ids": [
+          "kb_008",
+          "kb_013"
+        ]
+      }
+    },
+    {
+      "id": "fuzzy_01",
+      "scenario": {
+        "type": "fuzzy",
+        "subtype": "connection_incident"
+      },
+      "question": "连数据库老是连不上，报连接相关的错，怎么搞？",
+      "reference": "优先核对是否为 E-4012（连接池耗尽）或 E-4013（认证握手超时）；前者看连接数与泄漏，后者看网络、SSL 与防火墙。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_018"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "faq_intent",
+            "acceptable_chunk_ids": [
+              "kb_018"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "fuzzy_02",
+      "scenario": {
+        "type": "fuzzy",
+        "subtype": "hybrid_search_function"
+      },
+      "question": "那个又能语义搜又能关键词搜的函数叫啥，怎么用？",
+      "reference": "应使用 DBMS_HYBRID_SEARCH，它融合向量与全文关键词检索。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_012"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "function_reference",
+            "acceptable_chunk_ids": [
+              "kb_012"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "faq_intent",
+            "acceptable_chunk_ids": [
+              "kb_019"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "fuzzy_03",
+      "scenario": {
+        "type": "fuzzy",
+        "subtype": "major_upgrade"
+      },
+      "question": "最近大版本升级要注意啥兼容问题？",
+      "reference": "3.x 到 4.x 需数据迁移和升级客户端驱动；4.2.1 兼容 4.1.x 而不兼容 3.x。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_014"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "upgrade_path",
+            "acceptable_chunk_ids": [
+              "kb_014"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "compatibility",
+            "acceptable_chunk_ids": [
+              "kb_001"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "fuzzy_04",
+      "scenario": {
+        "type": "fuzzy",
+        "subtype": "business_health"
+      },
+      "question": "最近生意怎么样，营收那边有数吗？",
+      "reference": "2024年Q3 总营收 2.87 亿元，同比增长 34%。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_007"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "latest_finance",
+            "acceptable_chunk_ids": [
+              "kb_007"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    },
+    {
+      "id": "fuzzy_05",
+      "scenario": {
+        "type": "fuzzy",
+        "subtype": "ambiguous_slow"
+      },
+      "question": "查得太慢了怎么提速？",
+      "reference": "可检查并行执行（parallel_degree）与索引设计，以提升 SQL 查询性能。",
+      "gold": {
+        "primary_acceptable_chunk_ids": [
+          "kb_009"
+        ],
+        "required_facts": [
+          {
+            "fact_id": "parallel_tuning",
+            "acceptable_chunk_ids": [
+              "kb_009"
+            ],
+            "required": true
+          },
+          {
+            "fact_id": "index_tuning",
+            "acceptable_chunk_ids": [
+              "kb_010"
+            ],
+            "required": true
+          }
+        ]
+      },
+      "temporal": {
+        "as_of": null,
+        "stale_distractor_chunk_ids": []
+      }
+    }
+  ]
+}

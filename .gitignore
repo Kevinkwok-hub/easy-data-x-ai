@@ -35,3 +35,6 @@ code/**/skills.seekdb/
 code/**/skills.db
 /memory.db/
 /memory_persistent.db/
+
+# D3 RAGAS 本地运行工件（含逐例结果，勿提交）
+code/D3/data/runs/

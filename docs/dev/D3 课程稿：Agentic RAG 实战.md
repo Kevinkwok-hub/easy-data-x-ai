@@ -19,7 +19,7 @@ D2 给了你一个基座：seekdb 数据层。你用三行代码建了一个支�
 这一期有三个目标：
 
 1. **跑通 Agentic RAG 的完整代码链路**——从用户提问到 Agent 回答，中间经历 Tool Use 调用 seekdb 检索，整个过程完整串通
-2. **通过对比实验亲眼看到差距**——同一组查询，纯向量检索和混合检索的结果差距到底有多大
+2. **通过对比实验亲眼看到差距**——同一组查询，纯向量检索和混合检索的结果差距到底有多大；并用扩充场景的 RAGAS 四指标把「检索之后生成」也读清楚
 3. **把 P2 的工程痛点逐一落地**——加入查询分析、策略路由、权限过滤、融合重排、引用校验、失败重试和 60 条离线评测
 
 第二个目标是这节课的重头戏。不需要看论文，不需要听人讲道理——跑一次实验，数据替你说话。
@@ -275,6 +275,71 @@ PYTHONPATH=D3 python D3/d3_5_evaluate.py
 - 证据不足与安全拒答
 
 当前离线基线会生成 `code/D3/reports/offline-evaluation.md`。它用于稳定验证检索和编排逻辑，不调用模型，也不代表线上模型质量。真实模型的 Faithfulness、Answer Relevancy、延迟和账单，需要在你的环境里单独测量。
+
+### 再用 RAGAS 把「检索之后生成」也打上分
+
+60 条离线回归回答的是「检索与编排有没有按金标走对」。若要对照 P2 的四指标框架，还需要在同一知识库、同一批问题下，对纯向量与混合检索各跑一遍「检索 → 生成 → 打分」。为此课程补充了一套 **20 条、四场景** 的 RAGAS 评测集（精确匹配 / 多跳 / 时效 / 模糊，各 5 条），并给知识库增加了升级路径、接口废弃、运维 FAQ 等片段（`kb_013`–`kb_019`）以撑住时效与模糊题。完整标注见 `code/D3/data/eval_dataset.json`。
+
+![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/dev/D3/04-eval-scenario-taxonomy.png)
+
+这 20 条仍是课程尺度的描述性评测，用来把场景和读表方式跑通，不能推出统计显著性。动手时在写入知识库后执行：
+
+```bash
+cd code
+pip install -r requirements.txt
+PYTHONPATH=D3 python D3/d3_1_ingest.py
+PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --check-config
+PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --mode retrieval   # 先看金标检索指标
+PYTHONPATH=D3 python D3/d3_5_ragas_eval.py --mode ragas       # 完整 RAGAS（消耗评测 LLM）
+```
+
+核心逻辑可以概括为：换策略时只换检索函数，问题集与打分方式保持不变。
+
+```python
+from datasets import Dataset
+from ragas import evaluate
+from ragas.metrics import context_recall, context_precision, faithfulness, answer_relevancy
+
+rows = []
+for case in cases:
+    contexts, _ = retrieve_fn(case["question"])
+    answer = generate_fn(case["question"], contexts)
+    rows.append({
+        "question": case["question"],
+        "answer": answer,
+        "contexts": contexts,
+        "ground_truth": case["reference"],
+    })
+
+result = evaluate(
+    Dataset.from_list(rows),
+    metrics=[context_recall, context_precision, faithfulness, answer_relevancy],
+    llm=evaluator_llm,
+    embeddings=evaluator_embeddings,
+)
+```
+
+下面引用一次受控 live 运行的脱敏摘要（见 `code/D3/data/live_ragas_summary.json`；生成/评测模型为 `Qwen/Qwen3-8B`，embedding 为 `BAAI/bge-m3`）。本地重跑会有波动，重点看**相对差距**与分场景结构。
+
+| 指标 | 纯向量 | 混合检索 | 差值 |
+| --- | --- | --- | --- |
+| Context Recall | 0.75 | **0.93** | +0.18 |
+| Context Precision | 0.48 | **0.59** | +0.11 |
+| Faithfulness | 0.79 | **0.89** | +0.10 |
+| Answer Relevancy | 0.30 | **0.35** | +0.05 |
+| Evidence Coverage@K（辅助） | 0.70 | **0.90** | +0.20 |
+| Top-1 命中率（辅助） | 0.25 | **0.35** | +0.10 |
+
+| 场景 | 纯向量 Top-1 | 混合 Top-1 | 纯向量 Context Recall | 混合 Context Recall |
+| --- | --- | --- | --- | --- |
+| 精确匹配 | 0.00 | **0.20** | 0.80 | **1.00** |
+| 多跳问题 | 0.60 | 0.40 | 1.00 | 1.00 |
+| 时效性查询 | 0.00 | 0.00 | 0.70 | **0.90** |
+| 模糊表达 | 0.40 | **0.80** | 0.50 | **0.80** |
+
+![](https://raw.githubusercontent.com/datawhalechina/easy-data-x-ai/main/docs/public/images/dev/D3/05-ragas-comparison.png)
+
+读表时先看 Context Recall / Evidence Coverage，再看生成侧指标；Answer Relevancy 受评测模型影响更大，单次绝对值不要过度解读。维护者可跑 `python -m unittest D3.test_d3_ragas_eval` 校验评测集契约与配置行为。
 
 同一轮本机离线运行的三策略对比如下，详细口径见 `code/D3/reports/strategy-comparison.md`：
 
