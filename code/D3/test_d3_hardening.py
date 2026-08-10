@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from rag_data import knowledge_chunks
 
 D3_DIR = Path(__file__).resolve().parent
 
@@ -165,7 +166,7 @@ class DatabaseSafetyTests(unittest.TestCase):
         self.assertEqual([], database.deleted)
         self.assertEqual([], collection.add_calls)
         self.assertEqual(1, len(collection.upsert_calls))
-        self.assertEqual(12, len(collection.upsert_calls[0]["ids"]))
+        self.assertEqual(len(knowledge_chunks), len(collection.upsert_calls[0]["ids"]))
 
     def test_incremental_update_uses_atomic_upsert(self):
         namespace, _, _ = load_script("d3_4_production.py")

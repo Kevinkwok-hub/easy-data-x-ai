@@ -24,3 +24,7 @@ PyYAML>=5.4.1
 # X5 MCP 实战
 # X5 使用 mcp 1.x 的 FastMCP 导入路径，2.0 已移除该兼容入口。
 mcp[cli]>=1.28.1,<2
+
+# D3 RAGAS 评测（d3_5_ragas_eval.py；0.2.x 与当前 Dataset 字段 API 对齐）
+ragas>=0.2.0,<0.3
+datasets>=2.14.0

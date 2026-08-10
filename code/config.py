@@ -51,14 +51,29 @@ class Config:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "YOUR_API_KEY")
     OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 
+    # D3 RAGAS 评测配置；未单独设置时回退到 SiliconFlow。
+    RAGAS_API_KEY = os.getenv("RAGAS_API_KEY", "")
+    RAGAS_BASE_URL = os.getenv("RAGAS_BASE_URL", "")
+    RAGAS_LLM_MODEL = os.getenv("RAGAS_LLM_MODEL", "deepseek-ai/DeepSeek-V3")
+    RAGAS_EMBEDDING_MODEL = os.getenv("RAGAS_EMBEDDING_MODEL", "")
+
+    @classmethod
+    def _is_configured_value(cls, value: str) -> bool:
+        if not isinstance(value, str):
+            return False
+        stripped = value.strip()
+        if not stripped:
+            return False
+        lowered = stripped.lower()
+        return stripped != "YOUR_API_KEY" and not lowered.startswith("your_")
+
     @classmethod
     def check_api_key(cls, key_name="SILICONFLOW_API_KEY"):
         """检查 API Key 是否已配置"""
         key = getattr(cls, key_name)
         if isinstance(key, str):
             key = key.strip()
-        template_value = f"your_{key_name.lower()}_here"
-        if key in {"YOUR_API_KEY", template_value} or not key:
+        if not cls._is_configured_value(key):
             print(f"⚠️  警告: {key_name} 未配置！")
             print(f"请在 code/.env 或仓库根目录 .env 文件中设置 {key_name}")
             return False
@@ -85,6 +100,28 @@ class Config:
         return {
             "base_url": cls.DASHSCOPE_BASE_URL,
             "api_key": cls.DASHSCOPE_API_KEY,
+        }
+
+    @classmethod
+    def get_ragas_evaluator_config(cls):
+        """获取 RAGAS 评测所需的 OpenAI 兼容配置，不输出密钥。"""
+        api_key = (
+            cls.RAGAS_API_KEY
+            if cls._is_configured_value(cls.RAGAS_API_KEY)
+            else cls.SILICONFLOW_API_KEY
+        )
+        base_url = cls.RAGAS_BASE_URL or cls.SILICONFLOW_BASE_URL
+        missing = []
+        if not cls._is_configured_value(api_key):
+            missing.append("RAGAS_API_KEY 或 SILICONFLOW_API_KEY")
+        if not cls.RAGAS_EMBEDDING_MODEL:
+            missing.append("RAGAS_EMBEDDING_MODEL")
+        return {
+            "api_key": api_key,
+            "base_url": base_url,
+            "llm_model": cls.RAGAS_LLM_MODEL,
+            "embedding_model": cls.RAGAS_EMBEDDING_MODEL,
+            "missing": missing,
         }
 
 

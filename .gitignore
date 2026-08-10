@@ -35,3 +35,6 @@ code/**/skills.seekdb/
 code/**/skills.db
 /memory.db/
 /memory_persistent.db/
+
+# D3 RAGAS 临时运行工件；需发布时用 --publish-summary 生成可审查摘要
+code/D3/data/runs/
