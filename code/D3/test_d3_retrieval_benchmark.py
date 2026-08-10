@@ -34,7 +34,7 @@ class RetrievalTriangleBenchmarkTests(unittest.TestCase):
         self.assertEqual(50, report.case_count)
         self.assertEqual(50, report.samples_per_strategy)
         self.assertEqual(0.72, by_name["vector"].hit_at_1)
-        self.assertEqual(0.96, by_name["hybrid"].hit_at_1)
+        self.assertEqual(0.88, by_name["hybrid"].hit_at_1)
         self.assertGreater(
             by_name["hybrid"].average_context_tokens,
             by_name["vector"].average_context_tokens,

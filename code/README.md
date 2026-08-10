@@ -82,6 +82,8 @@ DASHSCOPE_API_KEY=your_dashscope_api_key_here
 PYTHONPATH=code/D3:code .venv/bin/python code/D3/d3_5_evaluate.py
 ```
 
+该脚本会实际执行查询改写、多路自适应检索、纠错重试和答案校验，并在 `code/D3/reports/` 生成离线评测与策略对比报告。
+
 再运行需要真实模型的示例：
 
 macOS/Linux：
